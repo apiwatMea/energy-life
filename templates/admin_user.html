@@ -1,0 +1,63 @@
+
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>รายบ้าน • Admin</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"/>
+</head>
+<body class="bg">
+<div class="shell">
+  <header class="top bar">
+    <div class="row gap">
+      <a class="btn" href="{{ url_for('admin') }}">← Admin</a>
+      <div>
+        <div class="title">🏠 บ้านของ {{ u.username }} (รายบ้าน)</div>
+        <div class="subtitle">Lv.{{ st.house_level }} • คะแนน {{ st.points }} ⭐</div>
+      </div>
+    </div>
+    <div class="row gap">
+      <a class="btn ghost" href="{{ url_for('logout') }}">ออก</a>
+    </div>
+  </header>
+
+  <main class="card">
+    <div class="grid3">
+      <div class="mini"><div class="mini-title">มิเตอร์</div><div class="big">{{ st.state.tariff_mode }}</div></div>
+      <div class="mini"><div class="mini-title">Solar</div><div class="big">{{ st.state.solar_kw }} kW</div></div>
+      <div class="mini"><div class="mini-title">EV</div><div class="big">{{ "ON" if st.state.ev_enabled else "OFF" }}</div></div>
+    </div>
+
+    <div class="divider"></div>
+    <h3>ประวัติพลังงาน (60 วัน)</h3>
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Day</th><th>kWh รวม</th><th>ค่าไฟ (฿)</th><th>On</th><th>Off</th><th>Solar ใช้เอง</th><th>EV</th><th>เวลา</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+            <tr>
+              <td>{{ r.day }}</td>
+              <td>{{ "%.2f"|format(r.kwh_total) }}</td>
+              <td>{{ "%.2f"|format(r.cost_thb) }}</td>
+              <td>{{ "%.2f"|format(r.kwh_on) }}</td>
+              <td>{{ "%.2f"|format(r.kwh_off) }}</td>
+              <td>{{ "%.2f"|format(r.kwh_solar_used) }}</td>
+              <td>{{ "%.2f"|format(r.kwh_ev) }}</td>
+              <td class="muted small">{{ r.created_at }}</td>
+            </tr>
+          {% endfor %}
+          {% if not rows %}
+            <tr><td colspan="8" class="muted">ยังไม่มีข้อมูลจำลอง</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </main>
+</div>
+</body>
+</html>

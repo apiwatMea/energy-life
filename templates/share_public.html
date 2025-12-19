@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>แชร์บ้าน • ENERGY LIFE V3</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"/>
+</head>
+<body class="bg">
+<div class="shell">
+  <header class="top bar">
+    <div class="row gap">
+      <a class="btn" href="{{ url_for('landing') }}">ENERGY LIFE</a>
+      <div>
+        <div class="title">🏠 บ้านที่แชร์</div>
+        <div class="muted">ดูอย่างเดียว (ไม่มีข้อมูลส่วนตัว)</div>
+      </div>
+    </div>
+  </header>
+
+  <main class="card">
+    {% if not_found %}
+      <div class="title">ไม่พบบ้านที่แชร์</div>
+      <div class="muted mt">ลิงก์อาจไม่ถูกต้อง หรือถูกยกเลิก</div>
+    {% else %}
+      <div class="row between">
+        <div>
+          <div class="title">{{ name }}</div>
+          <div class="muted">Lv.{{ st.house_level }} • คะแนน {{ st.points }} ⭐</div>
+        </div>
+        <div class="badge">🏡</div>
+      </div>
+
+      {% if pet %}
+        <div class="mini mt">
+          <div class="mini-title">🐾 สัตว์เลี้ยง</div>
+          <div class="mt">ชนิด: <b>{{ pet.pet_type }}</b> • สเตจ: <b>{{ pet.stage }}</b> • Lv.<b>{{ pet.level }}</b></div>
+          <div class="muted mt">ความอิ่ม {{ pet.hunger }}/100 • ความสุข {{ pet.happiness }}/100</div>
+        </div>
+      {% else %}
+        <div class="muted mt">ยังไม่มีสัตว์เลี้ยง</div>
+      {% endif %}
+    {% endif %}
+  </main>
+</div>
+</body>
+</html>

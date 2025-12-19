@@ -1,0 +1,301 @@
+
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>บ้านของฉัน • ENERGY LIFE</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"/>
+</head>
+<body class="bg">
+<div class="shell">
+  <header class="top bar">
+    <div class="row gap">
+      <div class="badge">{{ levels[house_level-1].badge }}</div>
+      <div>
+        <div class="title">บ้านของ {{ profile.display_name if profile.display_name else user.username }}</div>
+        <div class="subtitle">
+          Lv.{{ house_level }} • {{ levels[house_level-1].name }} • คะแนน: <b id="points">{{ points }}</b> ⭐
+        </div>
+        <div class="level-progress">
+          <div class="muted small">Progress → Lv.{{ house_level+1 if house_level<10 else 10 }}: {{ levels[house_level].need_points if house_level<10 else levels[9].need_points }} pts</div>
+          <div class="barwrap"><div class="barfill" style="width: {{ (points / (levels[house_level].need_points if house_level<10 else levels[9].need_points) * 100) | round(0) }}%;"></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="row gap">
+      <a class="btn" href="{{ url_for('dashboard') }}">📊 Dashboard</a> 
+      <a class="btn" href="{{ url_for('missions') }}">🎯 ภารกิจ</a>
+      <a class="btn" href="{{ url_for('pets') }}">🐾 สัตว์เลี้ยง</a>
+      <a class="btn" href="{{ url_for('leaderboard') }}">🏆 อันดับสัปดาห์นี้</a>
+      <a class="btn" href="{{ url_for('profile') }}">👤 โปรไฟล์</a>
+      <a class="btn" href="{{ url_for('user_settings') }}">⚙️ ตั้งค่า</a>
+      {% if user.role in ['admin','officer'] %}
+        <a class="btn" href="{{ url_for('admin') }}">🛠 Admin</a>
+      {% endif %}
+      <a class="btn ghost" href="{{ url_for('logout') }}">ออก</a>
+    </div>
+  </header>
+
+  <main class="grid2">
+    <section class="card">
+      <h2>ตั้งค่า “บ้านจริงของคุณ”</h2>
+
+      <div class="grid3 mt">
+        <div class="mini">
+          <div class="mini-title">👤 ผู้เล่น</div>
+          <select id="player_type">
+            <option value="kid" {{ 'selected' if profile.player_type=='kid' else '' }}>เด็ก</option>
+            <option value="adult" {{ 'selected' if profile.player_type=='adult' else '' }}>ผู้ใหญ่</option>
+            <option value="family" {{ 'selected' if profile.player_type=='family' else '' }}>ครอบครัว</option>
+          </select>
+        </div>
+        <div class="mini">
+          <div class="mini-title">🏠 ประเภทบ้าน</div>
+          <select id="house_type">
+            <option value="condo" {{ 'selected' if profile.house_type=='condo' else '' }}>คอนโด</option>
+            <option value="single_1" {{ 'selected' if profile.house_type=='single_1' else '' }}>บ้าน 1 ชั้น</option>
+            <option value="single_2" {{ 'selected' if profile.house_type=='single_2' else '' }}>บ้าน 2 ชั้น</option>
+          </select>
+        </div>
+        <div class="mini">
+          <div class="mini-title">📏 ขนาดบ้าน</div>
+          <select id="house_size">
+            <option value="small" {{ 'selected' if profile.house_size=='small' else '' }}>เล็ก</option>
+            <option value="medium" {{ 'selected' if profile.house_size=='medium' else '' }}>กลาง</option>
+            <option value="large" {{ 'selected' if profile.house_size=='large' else '' }}>ใหญ่</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row gap mt">
+        <div class="mini grow">
+          <div class="mini-title">👨‍👩‍👧‍👦 จำนวนคนในบ้าน</div>
+          <input id="residents" type="number" min="1" max="12" value="{{ profile.residents }}"/>
+        </div>
+        <div class="mini grow">
+          <div class="mini-title">🧾 มิเตอร์</div>
+          <select id="tariff_mode">
+            <option value="non_tou" {{ 'selected' if state.tariff_mode=='non_tou' else '' }}>ปกติ (Non‑TOU)</option>
+            <option value="tou" {{ 'selected' if state.tariff_mode=='tou' else '' }}>TOU</option>
+          </select>
+        </div>
+        <div class="mini grow">
+          <div class="mini-title">☀️ Solar Mode</div>
+          <select id="solar_mode">
+            <option value="manual" {{ 'selected' if state.solar_mode=='manual' else '' }}>เลือกเอง</option>
+            <option value="advisor" {{ 'selected' if state.solar_mode=='advisor' else '' }}>ให้ระบบแนะนำ</option>
+          </select>
+        </div>
+        <div class="mini grow">
+          <div class="mini-title">☀️ Solar (kW)</div>
+          <select id="solar_kw">
+            {% for kw in [0,3,5,10] %}
+              <option value="{{kw}}" {{ 'selected' if state.solar_kw==kw else '' }}>{{kw}} kW</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <h3>อุปกรณ์ไฟฟ้า (ครบบ้าน) 🔌</h3>
+
+      <div class="appliances">
+        {% for a in appliances_catalog %}
+          <div class="appliance card2" data-key="{{a.key}}">
+            <div class="row between">
+              <div class="row gap">
+                <div class="ap-ico">{{ a.icon }}</div>
+                <div>
+                  <div class="ap-name">{{ a.name }}</div>
+                  <div class="muted small">ตั้งค่าให้เหมือนบ้านจริง</div>
+                </div>
+              </div>
+              <label class="switch">
+                <input type="checkbox" class="ap-enabled" {{ 'checked' if state.appliances[a.key].enabled else '' }}>
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            {% if a.key == 'ac' %}
+              <div class="grid3 mt2">
+                <div class="mini">
+                  <div class="mini-title">BTU</div>
+                  <select class="ac-btu">
+                    {% for b in [9000,12000,18000,24000] %}
+                      <option value="{{b}}" {{ 'selected' if state.appliances.ac.btu==b else '' }}>{{b}}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="mini">
+                  <div class="mini-title">อุณหภูมิ (°C)</div>
+                  <input type="number" min="16" max="30" class="ac-temp" value="{{ state.appliances.ac.set_temp }}"/>
+                </div>
+                <div class="mini">
+                  <div class="mini-title">ชั่วโมง/วัน</div>
+                  <input type="number" step="0.5" min="0" max="24" class="ac-hours" value="{{ state.appliances.ac.hours }}"/>
+                </div>
+              </div>
+              <div class="grid3 mt2">
+                <div class="mini">
+                  <div class="mini-title">เริ่มเปิด (ชั่วโมง)</div>
+                  <input type="number" min="0" max="23" class="ac-start" value="{{ state.appliances.ac.start_hour }}"/>
+                </div>
+                <div class="mini">
+                  <div class="mini-title">ปิด (ชั่วโมง)</div>
+                  <input type="number" min="0" max="23" class="ac-end" value="{{ state.appliances.ac.end_hour }}"/>
+                </div>
+                <div class="mini">
+                  <div class="mini-title">หมายเหตุ</div>
+                  <div class="muted small">รองรับข้ามเที่ยงคืน (เช่น 20→2)</div>
+                </div>
+              </div>
+              <div class="row gap mt2">
+                <label class="pill">
+                  <input type="checkbox" class="ac-inverter" {{ 'checked' if state.appliances.ac.inverter else '' }}>
+                  Inverter
+                </label>
+                <div class="muted small">แนะนำตั้ง 26°C เพื่อประหยัด</div>
+              </div>
+            {% elif a.key == 'lights' %}
+              <div class="grid3 mt2">
+                <div class="mini">
+                  <div class="mini-title">ชนิดหลอด</div>
+                  <select class="li-mode">
+                    <option value="LED" {{ 'selected' if state.appliances.lights.mode=='LED' else '' }}>LED</option>
+                    <option value="NORMAL" {{ 'selected' if state.appliances.lights.mode!='LED' else '' }}>ธรรมดา</option>
+                  </select>
+                </div>
+                <div class="mini">
+                  <div class="mini-title">กำลังไฟรวม (W)</div>
+                  <input type="number" min="1" max="2000" class="li-watts" value="{{ state.appliances.lights.watts }}"/>
+                </div>
+                <div class="mini">
+                  <div class="mini-title">ชั่วโมง/วัน</div>
+                  <input type="number" step="0.5" min="0" max="24" class="li-hours" value="{{ state.appliances.lights.hours }}"/>
+                </div>
+              </div>
+            {% elif a.key == 'fridge' %}
+              <div class="row gap mt2">
+                <div class="mini grow">
+                  <div class="mini-title">ใช้ไฟต่อวัน (kWh)</div>
+                  <input type="number" step="0.1" min="0" max="10" class="fr-kwh" value="{{ state.appliances.fridge.kwh_per_day }}"/>
+                </div>
+                <div class="muted small">โดยทั่วไป 0.8–1.8 kWh/วัน</div>
+              </div>
+            {% else %}
+              <div class="grid3 mt2">
+                <div class="mini">
+                  <div class="mini-title">กำลังไฟ (W)</div>
+                  <input type="number" min="0" max="10000" class="ge-watts" value="{{ state.appliances[a.key].watts if 'watts' in state.appliances[a.key] else 0 }}"/>
+                </div>
+                <div class="mini">
+                  <div class="mini-title">ชั่วโมง/วัน</div>
+                  <input type="number" step="0.1" min="0" max="24" class="ge-hours" value="{{ state.appliances[a.key].hours if 'hours' in state.appliances[a.key] else 0 }}"/>
+                </div>
+                <div class="mini">
+                  <div class="mini-title">ทิป</div>
+                  <div class="muted small">เปิดเท่าที่จำเป็น</div>
+                </div>
+              </div>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+
+      <div class="divider"></div>
+
+      <h3>🚗 รถไฟฟ้า (EV)</h3>
+      <div class="row between">
+        <div class="muted">เพิ่มระบบชาร์จ EV เพื่อรู้ค่าไฟต่อ 1 ครั้ง</div>
+        <label class="pill">
+          <input id="ev_enabled" type="checkbox" {{ 'checked' if state.ev_enabled else '' }}>
+          เปิดใช้ EV
+        </label>
+      </div>
+
+      <div id="ev_panel" class="grid3 mt2">
+        <div class="mini">
+          <div class="mini-title">แบต (kWh)</div>
+          <input id="ev_batt" type="number" step="1" min="20" max="120" value="{{ state.ev.battery_kwh }}"/>
+        </div>
+        <div class="mini">
+          <div class="mini-title">Charger (kW)</div>
+          <select id="ev_charger">
+            {% for kw in [3.5,7.4,11,22] %}
+              <option value="{{kw}}" {{ 'selected' if state.ev.charger_kw==kw else '' }}>{{kw}}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mini">
+          <div class="mini-title">เริ่มชาร์จ (ชั่วโมง)</div>
+          <input id="ev_start" type="number" min="0" max="23" value="{{ state.ev.charge_start_hour }}"/>
+        </div>
+        <div class="mini">
+          <div class="mini-title">ชาร์จจาก % → %</div>
+          <div class="row gap">
+            <input id="ev_from" type="number" min="0" max="100" value="{{ state.ev.soc_from }}"/>
+            <span class="muted">→</span>
+            <input id="ev_to" type="number" min="0" max="100" value="{{ state.ev.soc_to }}"/>
+          </div>
+        </div>
+      </div>
+
+      <div class="row gap mt2">
+        <button class="btn" id="saveBtn">บันทึกการตั้งค่า</button>
+        <button class="btn primary" id="simBtn">▶ จำลองไปอีก 1 วัน</button>
+        <div class="muted small">Day: <b id="dayCounter">{{ state.day_counter }}</b></div>
+      </div>
+
+    </section>
+
+    <aside class="card">
+      <h2>ผลลัพธ์วันนี้</h2>
+      <div class="panel" id="resultBox">
+        <div class="muted">กด “จำลองไปอีก 1 วัน” เพื่อดูหน่วยไฟและค่าไฟ</div>
+      </div>
+
+      <div class="divider"></div>
+
+      <h2>ร้านค้า 🎁</h2>
+      <div class="muted">ใช้คะแนนแลกของตกแต่งบ้าน/ตัวละคร</div>
+      <div class="shop mt2">
+        {% for it in shop_items %}
+          <div class="shop-item">
+            <div class="row between">
+              <div class="row gap">
+                <div class="ap-ico">{{it.icon}}</div>
+                <div>
+                  <div class="ap-name">{{it.name}}</div>
+                  <div class="muted small">{{it.category}}</div>
+                </div>
+              </div>
+              <button class="btn buyBtn" data-item="{{it.key}}">{{it.cost}} ⭐</button>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+
+      <div class="divider"></div>
+      <h3>ของที่มีแล้ว</h3>
+      <div class="muted small" id="inventoryBox">
+        เฟอร์นิเจอร์: {{ ", ".join(state.inventory.furniture) if state.inventory.furniture else "—" }}<br/>
+        Avatar: {{ ", ".join(state.inventory.avatar) if state.inventory.avatar else "—" }}
+      </div>
+
+      <div class="divider"></div>
+      <h3>คำแนะนำเร็วๆ</h3>
+      <ul class="tips">
+        <li>ตั้งแอร์ <b>26°C</b> ช่วยประหยัด</li>
+        <li>เปิด TOU แล้วลองย้ายการใช้ไฟไปช่วง <b>Off‑Peak</b></li>
+        <li>Solar เหมาะกับบ้านที่ใช้ไฟกลางวันเยอะ</li>
+        <li>ชาร์จ EV ช่วงดึกจะคุ้มกว่า (ถ้าเป็น TOU)</li>
+      </ul>
+    </aside>
+  </main>
+</div>
+
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>โปรไฟล์ • ENERGY LIFE V3</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"/>
+</head>
+<body class="bg">
+<div class="shell">
+  <header class="top bar">
+    <div class="row gap">
+      <a class="btn" href="{{ url_for('home') }}">← กลับบ้าน</a>
+      <div>
+        <div class="title">👤 โปรไฟล์</div>
+        <div class="muted">ชื่อที่แสดง + ลิงก์แชร์บ้าน</div>
+      </div>
+    </div>
+  </header>
+
+  <main class="card">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="mt">
+        {% for cat,msg in messages %}
+          <div class="toast {{cat}}">{{ msg }}</div>
+        {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <div class="grid2 mt">
+      <div class="mini">
+        <div class="mini-title">ชื่อที่แสดง</div>
+        <div class="big mt">{{ name }}</div>
+        <div class="muted mt">ตั๋วเปลี่ยนชื่อ: <b>{{ ticket }}</b> 🎟️</div>
+
+        <form method="post" class="mt row gap">
+          <input class="input" name="display_name" placeholder="ชื่อใหม่ (3–16 ตัวอักษร)"/>
+          <button class="btn primary" type="submit">เปลี่ยนชื่อ</button>
+        </form>
+        <div class="muted mt">* ต้องมี “ตั๋วเปลี่ยนชื่อ” ก่อนถึงจะเปลี่ยนได้</div>
+      </div>
+
+      <div class="mini">
+        <div class="mini-title">แชร์บ้าน</div>
+        <div class="mt muted">ลิงก์สำหรับแชร์ (ดูอย่างเดียว):</div>
+        <div class="mt">
+          <code>/share/{{ token }}</code>
+        </div>
+        <div class="mt">
+          <a class="btn" href="{{ url_for('share_public', token=token) }}">เปิดหน้าพรีวิว</a>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

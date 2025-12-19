@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>ภารกิจ • ENERGY LIFE V3</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"/>
+</head>
+<body class="bg">
+<div class="shell">
+  <header class="top bar">
+    <div class="row gap">
+      <a class="btn" href="{{ url_for('home') }}">← กลับบ้าน</a>
+      <div>
+        <div class="title">🎯 ภารกิจ</div>
+        <div class="muted">Lv.{{ house_level }} • คะแนน {{ points }} ⭐</div>
+      </div>
+    </div>
+  </header>
+
+  <main class="card">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="mt">
+        {% for cat,msg in messages %}
+          <div class="toast {{cat}}">{{ msg }}</div>
+        {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <div class="grid2 mt">
+      {% for m in missions %}
+      <div class="mini">
+        <div class="row between">
+          <div>
+            <div class="mini-title">{{ m.title }}</div>
+            <div class="muted">{{ m.type|upper }}</div>
+          </div>
+          <div class="badge">{{ "✅" if m.claimed else ("🟢" if m.available else "🔒") }}</div>
+        </div>
+        <div class="mt">{{ m.desc }}</div>
+        <div class="row between mt">
+          <div class="muted">รางวัล: <b>{{ m.reward_points }}</b> ⭐
+            {% if m.reward_item %} + {{ m.reward_item.qty }}x {{ m.reward_item.key }}{% endif %}
+          </div>
+          <form method="post">
+            <input type="hidden" name="mission_id" value="{{ m.id }}"/>
+            {% if m.claimed %}
+              <button class="btn" disabled>รับแล้ว</button>
+            {% elif m.available %}
+              <button class="btn primary" type="submit">รับรางวัล</button>
+            {% else %}
+              <button class="btn" disabled>ยังไม่ผ่าน</button>
+            {% endif %}
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="mt muted">
+      เคล็ดลับ: ภารกิจบางอันจะปลดล็อก “ไข่สัตว์เลี้ยง” และ “ตั๋วเปลี่ยนชื่อ” เพื่อเล่นได้สนุกขึ้น 🐾
+    </div>
+  </main>
+</div>
+</body>
+</html>

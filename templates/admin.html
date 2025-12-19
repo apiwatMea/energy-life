@@ -1,0 +1,101 @@
+
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Admin • ENERGY LIFE</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"/>
+</head>
+<body class="bg">
+<div class="shell">
+  <header class="top bar">
+    <div class="row gap">
+      <a class="btn" href="{{ url_for('home') }}">← กลับบ้าน</a>
+      <div>
+        <div class="title">🛠 Admin Dashboard</div>
+        <div class="subtitle">สถิติคนเล่น + ตั้งค่าอัตราค่าไฟ (MVP)</div>
+      </div>
+    </div>
+    <div class="row gap">
+      <a class="btn ghost" href="{{ url_for('logout') }}">ออก</a>
+    </div>
+  </header>
+
+  <main class="grid2">
+    <section class="card">
+      <h2>สถิติผู้ใช้งาน</h2>
+      <div class="grid3 mt">
+        <div class="mini"><div class="mini-title">ผู้ใช้ทั้งหมด</div><div class="big">{{ total_users }}</div></div>
+        <div class="mini"><div class="mini-title">Active วันนี้</div><div class="big">{{ todays }}</div></div>
+        <div class="mini"><div class="mini-title">Active 7 วัน</div><div class="big">{{ active_7d }}</div></div>
+      </div>
+      <div class="grid3 mt2">
+        <div class="mini"><div class="mini-title">Active 30 วัน</div><div class="big">{{ active_30d }}</div></div>
+        <div class="mini"><div class="mini-title">kWh เฉลี่ย/วัน (ระบบ)</div><div class="big">{{ "%.2f"|format(avg_kwh) }}</div></div>
+        <div class="mini"><div class="mini-title">ค่าไฟเฉลี่ย/วัน (ระบบ)</div><div class="big">{{ "%.2f"|format(avg_cost) }}</div></div>
+      </div>
+
+      <div class="divider"></div>
+
+      <h2>ตั้งค่าอัตราค่าไฟ (MVP)</h2>
+      <form method="post" action="{{ url_for('admin_settings') }}" class="form">
+        <div class="grid3">
+          <div>
+            <label>Non‑TOU (฿/kWh)</label>
+            <input name="non_tou_rate" value="{{ settings.non_tou_rate }}"/>
+          </div>
+          <div>
+            <label>TOU On‑Peak (฿/kWh)</label>
+            <input name="tou_on_rate" value="{{ settings.tou_on_rate }}"/>
+          </div>
+          <div>
+            <label>TOU Off‑Peak (฿/kWh)</label>
+            <input name="tou_off_rate" value="{{ settings.tou_off_rate }}"/>
+          </div>
+        </div>
+        <div class="grid3 mt2">
+          <div>
+            <label>On‑Peak Start (ชั่วโมง)</label>
+            <input name="on_peak_start" value="{{ settings.on_peak_start }}"/>
+          </div>
+          <div>
+            <label>On‑Peak End (ชั่วโมง)</label>
+            <input name="on_peak_end" value="{{ settings.on_peak_end }}"/>
+          </div>
+          <div class="row end">
+            <button class="btn primary" type="submit">บันทึก</button>
+          </div>
+        </div>
+      </form>
+    </section>
+
+    <aside class="card">
+      <h2>รายชื่อผู้ใช้ล่าสุด</h2>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>ID</th><th>ชื่อผู้ใช้</th><th>Role</th><th>Points</th><th>Lv</th><th></th></tr></thead>
+          <tbody>
+            {% for u in users %}
+              <tr>
+                <td>{{ u.id }}</td>
+                <td>{{ u.username }}</td>
+                <td>{{ u.role }}</td>
+                <td>{{ u.points if u.points is not none else 0 }}</td>
+                <td>{{ u.house_level if u.house_level is not none else 1 }}</td>
+                <td><a class="btn" href="{{ url_for('admin_user', user_id=u.id) }}">ดูบ้าน</a></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="divider"></div>
+      <div class="muted small">
+        *ค่าเริ่มต้น Admin: <b>admin</b>/<b>admin1234</b> (เปลี่ยนได้โดยตั้งค่า ENV: ENERGY_LIFE_ADMIN_PASS)
+      </div>
+    </aside>
+  </main>
+</div>
+</body>
+</html>

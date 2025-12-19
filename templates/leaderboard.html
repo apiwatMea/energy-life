@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>อันดับ • ENERGY LIFE V3</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"/>
+</head>
+<body class="bg">
+<div class="shell">
+  <header class="top bar">
+    <div class="row gap">
+      <a class="btn" href="{{ url_for('home') }}">← กลับบ้าน</a>
+      <div>
+        <div class="title">🏆 อันดับประจำสัปดาห์</div>
+        <div class="muted">สัปดาห์ {{ week_id }}</div>
+      </div>
+    </div>
+  </header>
+
+  <main class="card">
+    <div class="mt">
+      {% if board|length == 0 %}
+        <div class="muted">ยังไม่มีคะแนนสะสมของสัปดาห์นี้ ลองทำภารกิจหรือจำลองการใช้ไฟเพื่อเก็บแต้ม</div>
+      {% else %}
+      <table class="table">
+        <tr><th>#</th><th>ชื่อ</th><th>คะแนน</th></tr>
+        {% for r in board %}
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ r.name }}</td>
+            <td><b>{{ r.score }}</b> ⭐</td>
+          </tr>
+        {% endfor %}
+      </table>
+      {% endif %}
+    </div>
+  </main>
+</div>
+</body>
+</html>

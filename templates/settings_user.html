@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>ตั้งค่า • ENERGY LIFE V3</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"/>
+</head>
+<body class="bg">
+<div class="shell">
+  <header class="top bar">
+    <div class="row gap">
+      <a class="btn" href="{{ url_for('home') }}">← กลับบ้าน</a>
+      <div>
+        <div class="title">⚙️ ตั้งค่า</div>
+        <div class="muted">ปรับเสียง/มุมมอง/ภาษา/ความเป็นส่วนตัว</div>
+      </div>
+    </div>
+  </header>
+
+  <main class="card">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="mt">
+        {% for cat,msg in messages %}
+          <div class="toast {{cat}}">{{ msg }}</div>
+        {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <form method="post" class="mt">
+      <div class="grid2">
+        <div class="mini">
+          <div class="mini-title">🔊 เสียง</div>
+          <label class="mt"><input type="checkbox" name="audio_bgm" {% if prefs.audio.bgm %}checked{% endif %}/> ดนตรี (BGM)</label><br/>
+          <label><input type="checkbox" name="audio_sfx" {% if prefs.audio.sfx %}checked{% endif %}/> เอฟเฟกต์ (SFX)</label><br/>
+          <label><input type="checkbox" name="audio_pet" {% if prefs.audio.pet %}checked{% endif %}/> เสียงสัตว์เลี้ยง</label><br/>
+          <label><input type="checkbox" name="audio_tts" {% if prefs.audio.tts %}checked{% endif %}/> เสียงอ่านข้อความ (TTS)</label>
+          <div class="muted mt">* เวอร์ชันนี้เป็น “สวิตช์ระบบ” เพื่อพร้อมต่อยอดเสียงจริง</div>
+        </div>
+
+        <div class="mini">
+          <div class="mini-title">🎥 มุมมอง</div>
+          <div class="mt">
+            <label>โหมดมุมมอง</label>
+            <select name="view_mode" class="input">
+              <option value="cutaway" {% if prefs.view.mode == "cutaway" %}selected{% endif %}>Cutaway</option>
+              <option value="whole" {% if prefs.view.mode == "whole" %}selected{% endif %}>Whole House</option>
+            </select>
+          </div>
+          <label class="mt"><input type="checkbox" name="view_rotate" {% if prefs.view.rotate %}checked{% endif %}/> หมุนมุมมองได้</label><br/>
+          <label><input type="checkbox" name="view_animations" {% if prefs.view.animations %}checked{% endif %}/> แอนิเมชัน</label><br/>
+          <label><input type="checkbox" name="view_low_power" {% if prefs.view.low_power %}checked{% endif %}/> โหมดประหยัดเครื่อง</label>
+        </div>
+
+        <div class="mini">
+          <div class="mini-title">🌍 ภาษา</div>
+          <div class="mt">
+            <label>ภาษา UI</label>
+            <select name="lang_ui" class="input">
+              <option value="th" {% if prefs.language.ui == "th" %}selected{% endif %}>ไทย</option>
+              <option value="en" {% if prefs.language.ui == "en" %}selected{% endif %}>English</option>
+            </select>
+          </div>
+          <div class="mt">
+            <label>ภาษาเสียง (TTS)</label>
+            <select name="lang_voice" class="input">
+              <option value="th" {% if prefs.language.voice == "th" %}selected{% endif %}>ไทย</option>
+              <option value="en" {% if prefs.language.voice == "en" %}selected{% endif %}>English</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="mini">
+          <div class="mini-title">🔒 ความเป็นส่วนตัว</div>
+          <label class="mt"><input type="checkbox" name="privacy_share_house" {% if prefs.privacy.share_house %}checked{% endif %}/> อนุญาตแชร์บ้าน</label><br/>
+          <label><input type="checkbox" name="privacy_show_on_leaderboard" {% if prefs.privacy.show_on_leaderboard %}checked{% endif %}/> แสดงชื่อในอันดับ</label>
+        </div>
+      </div>
+
+      <div class="mt">
+        <button class="btn primary" type="submit">บันทึก</button>
+      </div>
+    </form>
+  </main>
+</div>
+</body>
+</html>
