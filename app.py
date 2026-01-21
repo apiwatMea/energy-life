@@ -6,9 +6,13 @@ from datetime import datetime, date
 from functools import wraps
 from flask import Flask, g, render_template, request, redirect, url_for, session, jsonify, flash
 from werkzeug.security import generate_password_hash, check_password_hash
+# ===== V4 Database =====
+from v4_db import init_v4_db, increment_visitor, get_visitor_count
 APP_NAME = "ENERGY LIFE V3"
 DATABASE = os.environ.get("ENERGY_LIFE_DB", "energy_life.db")
 SECRET_KEY = os.environ.get("ENERGY_LIFE_SECRET", None) or os.urandom(24).hex()
+# init v4 database on app start
+init_v4_db()
 def make_token(n=20):
     alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
     return "".join(random.choice(alphabet) for _ in range(n))
@@ -660,10 +664,10 @@ def close_db(exception):
     if db is not None:
         db.close()
 @app.route("/")
-def landing():
-    if session.get("user_id"):
-        return redirect(url_for("home"))
-    return render_template("landing.html", app_name=APP_NAME)
+def index():
+    increment_visitor()
+    visitor_count = get_visitor_count()
+    return render_template("index.html", visitor_count=visitor_count)
 @app.route("/home")
 @login_required
 def home():
