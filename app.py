@@ -309,6 +309,26 @@ def role_required(*roles):
 
 def default_profile():
     return {"display_name": "ผู้เล่น", "player_type": "family", "house_type": "condo", "house_size": "medium", "residents": 3}
+ROOM_TEMPLATES = {
+    "bedroom": ["ac", "lights"],
+    "living":  ["ac", "lights", "tv"],
+    "kitchen": ["lights", "microwave"],
+    "bathroom":["water_heater", "lights"],
+    "work":    ["lights", "computer"]
+}
+
+def build_rooms_from_layout(layout: dict):
+    rooms = {}
+    for room_type, count in (layout.get("rooms") or {}).items():
+        count = int(count or 0)
+        for i in range(1, count + 1):
+            rid = f"{room_type}_{i}"
+            rooms[rid] = {
+                "type": room_type,
+                "label": f"{room_type.capitalize()} {i}",
+                "appliances": {k: {} for k in ROOM_TEMPLATES.get(room_type, [])}
+            }
+    return rooms
 
 
 def default_state():
@@ -329,6 +349,22 @@ def default_state():
             "charge_end_hour": 6
         },
         "appliances": appliances,
+                # ===== PHASE 2: บ้าน -> ห้อง -> อุปกรณ์ =====
+        "house_layout": {
+            "enabled": False,          # ยังไม่เปิดโหมดแยกห้อง
+            "house_type": "condo",     # condo / single_1 / single_2
+            "rooms": {
+                "bedroom": 1,
+                "bathroom": 1,
+                "living": 1,
+                "kitchen": 1,
+                "work": 0
+            }
+        },
+
+        # ห้องที่ระบบจะ generate ให้ภายหลัง
+        "rooms": {},
+
         "inventory": {"furniture": [], "avatar": []},
         "day_counter": 1
     }
@@ -647,6 +683,51 @@ def index():
 @app.route("/home")
 @login_required
 def home():
+    @app.route("/rooms-setup", methods=["GET"])
+@login_required
+def rooms_setup():
+    user = current_user()
+    st = get_or_create_user_state(user["id"])
+    state = st["state"]
+    rooms = state.get("rooms") or {}
+    return render_template("rooms_setup.html", user=user, st=st, rooms=rooms, app_name=APP_NAME)
+
+    @app.route("/house-setup", methods=["GET","POST"])
+@login_required
+def house_setup():
+    user = current_user()
+    st = get_or_create_user_state(user["id"])
+    state = st["state"]
+
+    if request.method == "POST":
+        house_type = request.form.get("house_type","condo")
+        bedroom = int(request.form.get("bedroom","1") or 1)
+        bathroom = int(request.form.get("bathroom","1") or 1)
+        living = int(request.form.get("living","1") or 1)
+        kitchen = int(request.form.get("kitchen","1") or 1)
+        work = int(request.form.get("work","0") or 0)
+
+        state["house_layout"] = {
+            "enabled": True,
+            "house_type": house_type,
+            "rooms": {
+                "bedroom": bedroom,
+                "bathroom": bathroom,
+                "living": living,
+                "kitchen": kitchen,
+                "work": work
+            }
+        }
+
+        # generate rooms
+        state["rooms"] = build_rooms_from_layout(state["house_layout"])
+
+        save_user_state(user["id"], st["profile"], state, st["points"], st["house_level"])
+        flash("บันทึกโครงสร้างบ้านแล้ว ✅ ต่อไปตั้งค่าอุปกรณ์ตามห้องได้เลย", "success")
+        return redirect(url_for("rooms_setup"))
+
+    return render_template("house_setup.html", user=user, st=st, app_name=APP_NAME)
+
     user = current_user()
     st = get_or_create_user_state(user["id"])
     return render_template(
