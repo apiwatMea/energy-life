@@ -1,4 +1,3 @@
-
 <!doctype html>
 <html lang="th">
 <head>
@@ -15,20 +14,16 @@
       <div>
         <div class="title">บ้านของ {{ profile.display_name if profile.display_name else user.username }}</div>
         <div class="subtitle">
-          Lv.{{ house_level }} • {{ levels[house_level-1].name }} • คะแนน: <b id="points">{{ points }}</b> ⭐
-        </div>
-        <div class="level-progress">
-          <div class="muted small">Progress → Lv.{{ house_level+1 if house_level<10 else 10 }}: {{ levels[house_level].need_points if house_level<10 else levels[9].need_points }} pts</div>
-          <div class="barwrap"><div class="barfill" style="width: {{ (points / (levels[house_level].need_points if house_level<10 else levels[9].need_points) * 100) | round(0) }}%;"></div></div>
+          Lv.{{ house_level }} • {{ levels[house_level-1].name }}
+          <span class="muted">• (โหมดใช้งานจริง)</span>
         </div>
       </div>
     </div>
+
+    <!-- เมนู: โหมดใช้งานจริง (ซ่อนเกม) -->
     <div class="row gap">
-      <a class="btn" href="{{ url_for('dashboard') }}">📊 Dashboard</a> 
-      <a class="btn" href="{{ url_for('missions') }}">🎯 ภารกิจ</a>
-      <a class="btn" href="{{ url_for('pets') }}">🐾 สัตว์เลี้ยง</a>
-      <a class="btn" href="{{ url_for('leaderboard') }}">🏆 อันดับสัปดาห์นี้</a>
-      <a class="btn" href="{{ url_for('profile') }}">👤 โปรไฟล์</a>
+      <a class="btn" href="{{ url_for('home') }}">🏠 หน้าหลัก</a>
+      <a class="btn" href="{{ url_for('dashboard') }}">📊 Dashboard</a>
       <a class="btn" href="{{ url_for('user_settings') }}">⚙️ ตั้งค่า</a>
       {% if user.role in ['admin','officer'] %}
         <a class="btn" href="{{ url_for('admin') }}">🛠 Admin</a>
@@ -76,7 +71,7 @@
         <div class="mini grow">
           <div class="mini-title">🧾 มิเตอร์</div>
           <select id="tariff_mode">
-            <option value="non_tou" {{ 'selected' if state.tariff_mode=='non_tou' else '' }}>ปกติ (Non‑TOU)</option>
+            <option value="non_tou" {{ 'selected' if state.tariff_mode=='non_tou' else '' }}>ปกติ (Non-TOU)</option>
             <option value="tou" {{ 'selected' if state.tariff_mode=='tou' else '' }}>TOU</option>
           </select>
         </div>
@@ -247,7 +242,6 @@
         <button class="btn primary" id="simBtn">▶ จำลองไปอีก 1 วัน</button>
         <div class="muted small">Day: <b id="dayCounter">{{ state.day_counter }}</b></div>
       </div>
-
     </section>
 
     <aside class="card">
@@ -258,37 +252,10 @@
 
       <div class="divider"></div>
 
-      <h2>ร้านค้า 🎁</h2>
-      <div class="muted">ใช้คะแนนแลกของตกแต่งบ้าน/ตัวละคร</div>
-      <div class="shop mt2">
-        {% for it in shop_items %}
-          <div class="shop-item">
-            <div class="row between">
-              <div class="row gap">
-                <div class="ap-ico">{{it.icon}}</div>
-                <div>
-                  <div class="ap-name">{{it.name}}</div>
-                  <div class="muted small">{{it.category}}</div>
-                </div>
-              </div>
-              <button class="btn buyBtn" data-item="{{it.key}}">{{it.cost}} ⭐</button>
-            </div>
-          </div>
-        {% endfor %}
-      </div>
-
-      <div class="divider"></div>
-      <h3>ของที่มีแล้ว</h3>
-      <div class="muted small" id="inventoryBox">
-        เฟอร์นิเจอร์: {{ ", ".join(state.inventory.furniture) if state.inventory.furniture else "—" }}<br/>
-        Avatar: {{ ", ".join(state.inventory.avatar) if state.inventory.avatar else "—" }}
-      </div>
-
-      <div class="divider"></div>
       <h3>คำแนะนำเร็วๆ</h3>
       <ul class="tips">
         <li>ตั้งแอร์ <b>26°C</b> ช่วยประหยัด</li>
-        <li>เปิด TOU แล้วลองย้ายการใช้ไฟไปช่วง <b>Off‑Peak</b></li>
+        <li>เปิด TOU แล้วลองย้ายการใช้ไฟไปช่วง <b>Off-Peak</b></li>
         <li>Solar เหมาะกับบ้านที่ใช้ไฟกลางวันเยอะ</li>
         <li>ชาร์จ EV ช่วงดึกจะคุ้มกว่า (ถ้าเป็น TOU)</li>
       </ul>
