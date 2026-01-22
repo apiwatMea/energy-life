@@ -19,21 +19,25 @@
   </header>
 
   <main class="card">
+    {% set rooms = rooms or {} %}
+
     {% if rooms|length == 0 %}
       <div class="muted">ยังไม่มีห้อง — ไปที่ “ตั้งค่าโครงสร้างบ้าน” ก่อน</div>
     {% else %}
       <div class="grid2 mt">
         {% for rid, r in rooms.items() %}
+          {% set aps = (r.appliances or {}) %}
           <div class="mini">
             <div class="mini-title">{{ rid }}</div>
             <div class="muted">ประเภท: {{ r.type }}</div>
-            <div class="mt small muted">อุปกรณ์พื้นฐาน: {{ (r.appliances.keys()|list)|join(", ") }}</div>
+            <div class="mt small muted">อุปกรณ์พื้นฐาน: {{ (aps.keys()|list)|join(", ") }}</div>
           </div>
         {% endfor %}
       </div>
+
       <div class="divider"></div>
       <div class="muted">
-        ขั้นต่อไป: ทำหน้า “ตั้งค่าอุปกรณ์ตามห้อง” (เช่น /room/<rid>)
+        ขั้นต่อไป: ทำหน้า “ตั้งค่าอุปกรณ์ตามห้อง” (เช่น /room/&lt;rid&gt;)
       </div>
     {% endif %}
   </main>
