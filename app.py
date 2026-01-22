@@ -680,9 +680,6 @@ def index():
     return render_template("index.html", visitor_count=visitor_count, app_name=APP_NAME)
 
 
-# =========================
-# HOME
-# =========================
 @app.route("/home")
 @login_required
 def home():
@@ -697,14 +694,13 @@ def home():
         house_level=st["house_level"],
         levels=HOUSE_LEVELS,
         appliances_catalog=APPLIANCES_CATALOG,
-        app_name=APP_NAME,
+        app_name=APP_NAME
     )
 
 
 # =========================
-# HOUSE SETUP (กำหนดโครงสร้างบ้าน) + ROOMS SETUP
+# HOUSE SETUP (กำหนดโครงสร้างบ้าน)
 # =========================
-
 @app.route("/house-setup", methods=["GET", "POST"])
 @login_required
 def house_setup():
@@ -712,7 +708,7 @@ def house_setup():
     st = get_or_create_user_state(user["id"])
     state = st["state"]
 
-    def _to_int(name, default=0, min_v=0, max_v=10):
+    def to_int(name, default=0, min_v=0, max_v=10):
         try:
             v = int(request.form.get(name, default) or default)
         except Exception:
@@ -722,11 +718,11 @@ def house_setup():
     if request.method == "POST":
         house_type = request.form.get("house_type", "condo")
 
-        bedroom  = _to_int("bedroom", 1, 0, 10)
-        bathroom = _to_int("bathroom", 1, 0, 10)
-        living   = _to_int("living", 1, 0, 5)
-        kitchen  = _to_int("kitchen", 1, 0, 5)
-        work     = _to_int("work", 0, 0, 5)
+        bedroom = to_int("bedroom", 1, 0, 10)
+        bathroom = to_int("bathroom", 1, 0, 10)
+        living = to_int("living", 1, 0, 5)
+        kitchen = to_int("kitchen", 1, 0, 5)
+        work = to_int("work", 0, 0, 5)
 
         state["house_layout"] = {
             "enabled": True,
@@ -750,12 +746,15 @@ def house_setup():
     return render_template("house_setup.html", user=user, st=st, app_name=APP_NAME)
 
 
+# =========================
+# ROOMS SETUP (แสดงห้องที่สร้าง)
+# =========================
 @app.route("/rooms-setup", methods=["GET"])
 @login_required
 def rooms_setup():
     user = current_user()
     st = get_or_create_user_state(user["id"])
-    rooms = (st["state"].get("rooms") or {})
+    rooms = (st.get("state") or {}).get("rooms") or {}
     return render_template("rooms_setup.html", user=user, st=st, rooms=rooms, app_name=APP_NAME)
 
 
