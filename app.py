@@ -696,10 +696,14 @@ def home():
         points=st["points"],
         house_level=st["house_level"],
         levels=HOUSE_LEVELS,
-        appliances_catalog=APPLIANCES_CATALOG
+        appliances_catalog=APPLIANCES_CATALOG,
+        app_name=APP_NAME,
     )
 
 
+# =========================
+# HOUSE SETUP (กำหนดโครงสร้างบ้าน)
+# =========================
 @app.route("/house-setup", methods=["GET", "POST"])
 @login_required
 def house_setup():
@@ -709,11 +713,11 @@ def house_setup():
 
     if request.method == "POST":
         house_type = request.form.get("house_type", "condo")
-        bedroom  = int(request.form.get("bedroom", "1") or 1)
+        bedroom = int(request.form.get("bedroom", "1") or 1)
         bathroom = int(request.form.get("bathroom", "1") or 1)
-        living   = int(request.form.get("living", "1") or 1)
-        kitchen  = int(request.form.get("kitchen", "1") or 1)
-        work     = int(request.form.get("work", "0") or 0)
+        living = int(request.form.get("living", "1") or 1)
+        kitchen = int(request.form.get("kitchen", "1") or 1)
+        work = int(request.form.get("work", "0") or 0)
 
         state["house_layout"] = {
             "enabled": True,
@@ -723,8 +727,8 @@ def house_setup():
                 "bathroom": bathroom,
                 "living": living,
                 "kitchen": kitchen,
-                "work": work
-            }
+                "work": work,
+            },
         }
 
         # generate rooms
@@ -737,6 +741,9 @@ def house_setup():
     return render_template("house_setup.html", user=user, st=st, app_name=APP_NAME)
 
 
+# =========================
+# ROOMS SETUP (แสดงห้องที่สร้าง)
+# =========================
 @app.route("/rooms-setup", methods=["GET"])
 @login_required
 def rooms_setup():
@@ -745,6 +752,7 @@ def rooms_setup():
     state = st["state"]
     rooms = state.get("rooms") or {}
     return render_template("rooms_setup.html", user=user, st=st, rooms=rooms, app_name=APP_NAME)
+
 
 
 
