@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>ห้องของฉัน • ENERGY LIFE</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"/>
+</head>
+<body class="bg">
+<div class="shell">
+  <header class="top bar">
+    <div class="row gap">
+      <a class="btn" href="{{ url_for('house_setup') }}">← กลับไปตั้งค่าโครงสร้าง</a>
+      <div>
+        <div class="title">🧩 ห้องของฉัน</div>
+        <div class="subtitle">นี่คือห้องที่ระบบสร้างให้จากโครงสร้างบ้าน</div>
+      </div>
+    </div>
+  </header>
+
+  <main class="card">
+    {% if rooms|length == 0 %}
+      <div class="muted">ยังไม่มีห้อง — ไปที่ “ตั้งค่าโครงสร้างบ้าน” ก่อน</div>
+    {% else %}
+      <div class="grid2 mt">
+        {% for rid, r in rooms.items() %}
+          <div class="mini">
+            <div class="mini-title">{{ rid }}</div>
+            <div class="muted">ประเภท: {{ r.type }}</div>
+            <div class="mt small muted">อุปกรณ์พื้นฐาน: {{ (r.appliances.keys()|list)|join(", ") }}</div>
+          </div>
+        {% endfor %}
+      </div>
+      <div class="divider"></div>
+      <div class="muted">
+        ขั้นต่อไป: ทำหน้า “ตั้งค่าอุปกรณ์ตามห้อง” (เช่น /room/<rid>)
+      </div>
+    {% endif %}
+  </main>
+</div>
+</body>
+</html>
