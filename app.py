@@ -680,19 +680,30 @@ def index():
     return render_template("index.html", visitor_count=visitor_count, app_name=APP_NAME)
 
 
+# =========================
+# HOME
+# =========================
 @app.route("/home")
 @login_required
 def home():
-    @app.route("/rooms-setup", methods=["GET"])
-@login_required
-def rooms_setup():
     user = current_user()
     st = get_or_create_user_state(user["id"])
-    state = st["state"]
-    rooms = state.get("rooms") or {}
-    return render_template("rooms_setup.html", user=user, st=st, rooms=rooms, app_name=APP_NAME)
+    return render_template(
+        "home.html",
+        user=user,
+        profile=st["profile"],
+        state=st["state"],
+        points=st["points"],
+        house_level=st["house_level"],
+        levels=HOUSE_LEVELS,
+        appliances_catalog=APPLIANCES_CATALOG
+    )
 
-    @app.route("/house-setup", methods=["GET","POST"])
+
+# =========================
+# HOUSE SETUP (กำหนดโครงสร้างบ้าน)
+# =========================
+@app.route("/house-setup", methods=["GET", "POST"])
 @login_required
 def house_setup():
     user = current_user()
@@ -700,33 +711,60 @@ def house_setup():
     state = st["state"]
 
     if request.method == "POST":
-        house_type = request.form.get("house_type","condo")
-        bedroom = int(request.form.get("bedroom","1") or 1)
-        bathroom = int(request.form.get("bathroom","1") or 1)
-        living = int(request.form.get("living","1") or 1)
-        kitchen = int(request.form.get("kitchen","1") or 1)
-        work = int(request.form.get("work","0") or 0)
+        house_type = request.form.get("house_type", "condo")
 
         state["house_layout"] = {
             "enabled": True,
             "house_type": house_type,
             "rooms": {
-                "bedroom": bedroom,
-                "bathroom": bathroom,
-                "living": living,
-                "kitchen": kitchen,
-                "work": work
+                "bedroom": int(request.form.get("bedroom", 1)),
+                "bathroom": int(request.form.get("bathroom", 1)),
+                "living": int(request.form.get("living", 1)),
+                "kitchen": int(request.form.get("kitchen", 1)),
+                "work": int(request.form.get("work", 0)),
             }
         }
 
-        # generate rooms
+        # สร้างห้องจาก layout
         state["rooms"] = build_rooms_from_layout(state["house_layout"])
 
-        save_user_state(user["id"], st["profile"], state, st["points"], st["house_level"])
+        save_user_state(
+            user["id"],
+            st["profile"],
+            state,
+            st["points"],
+            st["house_level"]
+        )
+
         flash("บันทึกโครงสร้างบ้านแล้ว ✅ ต่อไปตั้งค่าอุปกรณ์ตามห้องได้เลย", "success")
         return redirect(url_for("rooms_setup"))
 
-    return render_template("house_setup.html", user=user, st=st, app_name=APP_NAME)
+    return render_template(
+        "house_setup.html",
+        user=user,
+        st=st,
+        app_name=APP_NAME
+    )
+
+
+# =========================
+# ROOMS SETUP (ตั้งค่าอุปกรณ์รายห้อง)
+# =========================
+@app.route("/rooms-setup", methods=["GET"])
+@login_required
+def rooms_setup():
+    user = current_user()
+    st = get_or_create_user_state(user["id"])
+    rooms = st["state"].get("rooms", {})
+
+    return render_template(
+        "rooms_setup.html",
+        user=user,
+        st=st,
+        rooms=rooms,
+        app_name=APP_NAME
+    )
+
 
     user = current_user()
     st = get_or_create_user_state(user["id"])
