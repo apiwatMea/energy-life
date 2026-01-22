@@ -3,39 +3,75 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>อันดับ • ENERGY LIFE V3</title>
+  <title>อันดับ • ENERGY LIFE</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"/>
 </head>
 <body class="bg">
 <div class="shell">
+
   <header class="top bar">
     <div class="row gap">
-      <a class="btn" href="{{ url_for('home') }}">← กลับบ้าน</a>
+      <a class="btn" href="{{ url_for('home') }}">← กลับหน้าใช้งาน</a>
       <div>
         <div class="title">🏆 อันดับประจำสัปดาห์</div>
-        <div class="muted">สัปดาห์ {{ week_id }}</div>
+        <div class="subtitle">โหมดเกม (Game Mode)</div>
       </div>
     </div>
   </header>
 
   <main class="card">
-    <div class="mt">
-      {% if board|length == 0 %}
-        <div class="muted">ยังไม่มีคะแนนสะสมของสัปดาห์นี้ ลองทำภารกิจหรือจำลองการใช้ไฟเพื่อเก็บแต้ม</div>
-      {% else %}
-      <table class="table">
-        <tr><th>#</th><th>ชื่อ</th><th>คะแนน</th></tr>
-        {% for r in board %}
-          <tr>
-            <td>{{ loop.index }}</td>
-            <td>{{ r.name }}</td>
-            <td><b>{{ r.score }}</b> ⭐</td>
-          </tr>
-        {% endfor %}
-      </table>
-      {% endif %}
-    </div>
+
+    {% if app_mode == 'utility' %}
+      <!-- ===== Utility Mode : ซ่อนระบบอันดับ ===== -->
+      <div class="center mt2">
+        <div class="big">🚧 ฟีเจอร์นี้ถูกปิดชั่วคราว</div>
+        <p class="muted mt">
+          ระบบอันดับเป็นส่วนหนึ่งของ <b>Game Mode</b><br/>
+          ขณะนี้ระบบอยู่ใน <b>โหมดใช้งานจริง (Utility Mode)</b>
+        </p>
+
+        <div class="mt2">
+          <a class="btn primary" href="{{ url_for('home') }}">กลับหน้าใช้งาน</a>
+        </div>
+
+        <div class="divider"></div>
+        <div class="muted small">
+          * ผู้ดูแลระบบสามารถเปิด Game Mode ได้จากหน้า Admin
+        </div>
+      </div>
+
+    {% else %}
+      <!-- ===== Game Mode : ระบบอันดับเดิม ===== -->
+
+      <div class="mt">
+        <div class="muted">สัปดาห์ {{ week_id }}</div>
+
+        {% if board|length == 0 %}
+          <div class="mt muted">
+            ยังไม่มีคะแนนสะสมของสัปดาห์นี้<br/>
+            ลองทำภารกิจหรือจำลองการใช้ไฟเพื่อเก็บแต้ม
+          </div>
+        {% else %}
+          <table class="table mt2">
+            <tr>
+              <th>#</th>
+              <th>ชื่อ</th>
+              <th>คะแนน</th>
+            </tr>
+            {% for r in board %}
+              <tr>
+                <td>{{ loop.index }}</td>
+                <td>{{ r.name }}</td>
+                <td><b>{{ r.score }}</b> ⭐</td>
+              </tr>
+            {% endfor %}
+          </table>
+        {% endif %}
+      </div>
+
+    {% endif %}
   </main>
+
 </div>
 </body>
 </html>
