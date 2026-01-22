@@ -678,8 +678,6 @@ def index():
     increment_visitor()
     visitor_count = get_visitor_count()
     return render_template("index.html", visitor_count=visitor_count, app_name=APP_NAME)
-
-
 @app.route("/home")
 @login_required
 def home():
@@ -698,9 +696,9 @@ def home():
     )
 
 
-# =========================
+# ==========================
 # HOUSE SETUP (กำหนดโครงสร้างบ้าน)
-# =========================
+# ==========================
 @app.route("/house-setup", methods=["GET", "POST"])
 @login_required
 def house_setup():
@@ -718,11 +716,11 @@ def house_setup():
     if request.method == "POST":
         house_type = request.form.get("house_type", "condo")
 
-        bedroom = to_int("bedroom", 1, 0, 10)
+        bedroom  = to_int("bedroom",  1, 0, 10)
         bathroom = to_int("bathroom", 1, 0, 10)
-        living = to_int("living", 1, 0, 5)
-        kitchen = to_int("kitchen", 1, 0, 5)
-        work = to_int("work", 0, 0, 5)
+        living   = to_int("living",   1, 0, 5)
+        kitchen  = to_int("kitchen",  1, 0, 5)
+        work     = to_int("work",     0, 0, 5)
 
         state["house_layout"] = {
             "enabled": True,
@@ -732,7 +730,7 @@ def house_setup():
                 "bathroom": bathroom,
                 "living": living,
                 "kitchen": kitchen,
-                "work": work,
+                "work": work
             }
         }
 
@@ -746,9 +744,9 @@ def house_setup():
     return render_template("house_setup.html", user=user, st=st, app_name=APP_NAME)
 
 
-# =========================
+# ==========================
 # ROOMS SETUP (แสดงห้องที่สร้าง)
-# =========================
+# ==========================
 @app.route("/rooms-setup", methods=["GET"])
 @login_required
 def rooms_setup():
@@ -756,10 +754,6 @@ def rooms_setup():
     st = get_or_create_user_state(user["id"])
     rooms = (st.get("state") or {}).get("rooms") or {}
     return render_template("rooms_setup.html", user=user, st=st, rooms=rooms, app_name=APP_NAME)
-
-
-
-
 
 # =========================
 # ROOMS SETUP (ตั้งค่าอุปกรณ์รายห้อง)
