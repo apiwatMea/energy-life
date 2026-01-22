@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>ตั้งค่าบ้าน • ENERGY LIFE</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"/>
+</head>
+<body class="bg">
+<div class="shell">
+  <header class="top bar">
+    <div class="row gap">
+      <a class="btn" href="{{ url_for('home') }}">← กลับ</a>
+      <div>
+        <div class="title">🏠 ตั้งค่าโครงสร้างบ้าน</div>
+        <div class="subtitle">เลือกประเภทบ้านและจำนวนห้อง เพื่อสร้างห้องอัตโนมัติ</div>
+      </div>
+    </div>
+  </header>
+
+  <main class="card">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="mt">
+        {% for cat,msg in messages %}
+          <div class="toast {{cat}}">{{ msg }}</div>
+        {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <form method="post" class="form">
+      <div class="mini">
+        <div class="mini-title">ประเภทบ้าน</div>
+        <select name="house_type">
+          <option value="condo">คอนโด</option>
+          <option value="single_1">บ้าน 1 ชั้น</option>
+          <option value="single_2">บ้าน 2 ชั้น</option>
+        </select>
+      </div>
+
+      <div class="grid3 mt2">
+        <div class="mini">
+          <div class="mini-title">ห้องนอน</div>
+          <input name="bedroom" type="number" min="0" max="10" value="1">
+        </div>
+        <div class="mini">
+          <div class="mini-title">ห้องน้ำ</div>
+          <input name="bathroom" type="number" min="0" max="10" value="1">
+        </div>
+        <div class="mini">
+          <div class="mini-title">ห้องนั่งเล่น</div>
+          <input name="living" type="number" min="0" max="5" value="1">
+        </div>
+      </div>
+
+      <div class="grid3 mt2">
+        <div class="mini">
+          <div class="mini-title">ห้องครัว</div>
+          <input name="kitchen" type="number" min="0" max="5" value="1">
+        </div>
+        <div class="mini">
+          <div class="mini-title">ห้องทำงาน</div>
+          <input name="work" type="number" min="0" max="5" value="0">
+        </div>
+      </div>
+
+      <div class="row gap mt">
+        <button class="btn primary" type="submit">บันทึกและสร้างห้อง</button>
+      </div>
+    </form>
+  </main>
+</div>
+</body>
+</html>
