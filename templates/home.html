@@ -14,8 +14,10 @@
       <div>
         <div class="title">บ้านของ {{ profile.display_name if profile.display_name else user.username }}</div>
         <div class="subtitle">
-          Lv.{{ house_level }} • {{ levels[house_level-1].name }}
-          <span class="muted">• (โหมดใช้งานจริง)</span>
+          <span class="muted">โหมดใช้งานจริง</span>
+          • TOU: <b id="statTariff">{{ state.tariff_mode }}</b>
+          • Solar: <b id="statSolar">{{ state.solar_kw }}</b> kW
+          • EV: <b id="statEv">{{ "ON" if state.ev_enabled else "OFF" }}</b>
         </div>
       </div>
     </div>
@@ -33,6 +35,7 @@
   </header>
 
   <main class="grid2">
+    <!-- LEFT: ตั้งค่า -->
     <section class="card">
       <h2>ตั้งค่า “บ้านจริงของคุณ”</h2>
 
@@ -244,7 +247,29 @@
       </div>
     </section>
 
+    <!-- RIGHT: สรุปผลใช้งานจริง -->
     <aside class="card">
+      <h2>สรุปย่อ (ใช้งานจริง)</h2>
+      <div class="grid3 mt2">
+        <div class="mini">
+          <div class="mini-title">⚡ kWh วันนี้</div>
+          <div class="big" id="statKwhDay">—</div>
+          <div class="muted small">จากการจำลองล่าสุด</div>
+        </div>
+        <div class="mini">
+          <div class="mini-title">💰 ค่าไฟวันนี้</div>
+          <div class="big" id="statCostDay">—</div>
+          <div class="muted small">บาท/วัน</div>
+        </div>
+        <div class="mini">
+          <div class="mini-title">📅 ประมาณ/เดือน</div>
+          <div class="big" id="statCostMonth">—</div>
+          <div class="muted small">คำนวณจาก “วันนี้ × 30”</div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
       <h2>ผลลัพธ์วันนี้</h2>
       <div class="panel" id="resultBox">
         <div class="muted">กด “จำลองไปอีก 1 วัน” เพื่อดูหน่วยไฟและค่าไฟ</div>
