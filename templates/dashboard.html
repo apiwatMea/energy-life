@@ -1,4 +1,3 @@
-
 <!doctype html>
 <html lang="th">
 <head>
@@ -11,10 +10,10 @@
 <div class="shell">
   <header class="top bar">
     <div class="row gap">
-      <a class="btn" href="{{ url_for('home') }}">← กลับบ้าน</a>
+      <a class="btn" href="{{ url_for('home') }}">← กลับหน้าใช้งาน</a>
       <div>
-        <div class="title">📊 Dashboard (บ้านรายเดียว)</div>
-        <div class="subtitle">สรุป kWh / ค่าไฟ / TOU / Solar / EV</div>
+        <div class="title">📊 Dashboard</div>
+        <div class="subtitle">สรุปการใช้ไฟ (kWh) / ค่าไฟ (฿) / TOU / Solar / EV</div>
       </div>
     </div>
     <div class="row gap">
@@ -22,28 +21,96 @@
     </div>
   </header>
 
+  {% set latest = rows[0] if rows else None %}
+
   <main class="card">
     <div class="row between">
       <div>
-        <div class="title">สถานะปัจจุบัน</div>
-        <div class="muted">Lv.{{ st.house_level }} • คะแนน {{ st.points }} ⭐</div>
+        <div class="title">ภาพรวมล่าสุด</div>
+        <div class="muted">
+          {% if latest %}
+            อัปเดตล่าสุด: <span class="muted small">{{ latest.created_at }}</span>
+          {% else %}
+            ยังไม่มีข้อมูลจำลอง — ไปหน้า “กลับหน้าใช้งาน” แล้วกดจำลอง 1 วัน
+          {% endif %}
+        </div>
       </div>
+
+      <!-- ซ่อนความเป็นเกม (ไม่โชว์ Lv/Badge/คะแนนบน Dashboard) -->
+      <!-- ถ้าต้องการโชว์ภายหลังค่อยเปิดได้ -->
+      <!--
       <div class="badge">{{ levels[st.house_level-1].badge }}</div>
+      -->
     </div>
 
     <div class="grid3 mt">
       <div class="mini">
         <div class="mini-title">โหมดมิเตอร์</div>
         <div class="big">{{ st.state.tariff_mode }}</div>
+        <div class="muted small">non_tou / tou</div>
       </div>
+
       <div class="mini">
         <div class="mini-title">Solar</div>
         <div class="big">{{ st.state.solar_kw }} kW</div>
         <div class="muted small">mode: {{ st.state.solar_mode }}</div>
       </div>
+
       <div class="mini">
         <div class="mini-title">EV</div>
         <div class="big">{{ "ON" if st.state.ev_enabled else "OFF" }}</div>
+        <div class="muted small">คำนวณ EV เฉพาะตอนเปิดใช้</div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <h3>สรุปวันล่าสุด</h3>
+    <div class="grid3 mt">
+      <div class="mini">
+        <div class="mini-title">kWh รวม</div>
+        <div class="big">
+          {% if latest %}{{ "%.2f"|format(latest.kwh_total) }}{% else %}—{% endif %}
+        </div>
+      </div>
+
+      <div class="mini">
+        <div class="mini-title">ค่าไฟ (฿)</div>
+        <div class="big">
+          {% if latest %}{{ "%.2f"|format(latest.cost_thb) }}{% else %}—{% endif %}
+        </div>
+      </div>
+
+      <div class="mini">
+        <div class="mini-title">แยกตามช่วงเวลา (TOU)</div>
+        <div class="big">
+          {% if latest %}
+            {{ "%.2f"|format(latest.kwh_on) }} / {{ "%.2f"|format(latest.kwh_off) }}
+          {% else %}
+            — / —
+          {% endif %}
+        </div>
+        <div class="muted small">On-Peak / Off-Peak (kWh)</div>
+      </div>
+
+      <div class="mini">
+        <div class="mini-title">Solar ใช้เอง (kWh)</div>
+        <div class="big">
+          {% if latest %}{{ "%.2f"|format(latest.kwh_solar_used) }}{% else %}—{% endif %}
+        </div>
+      </div>
+
+      <div class="mini">
+        <div class="mini-title">EV (kWh)</div>
+        <div class="big">
+          {% if latest %}{{ "%.2f"|format(latest.kwh_ev) }}{% else %}—{% endif %}
+        </div>
+      </div>
+
+      <div class="mini">
+        <div class="mini-title">จำนวนวันจำลองสะสม</div>
+        <div class="big">{{ rows|length }}</div>
+        <div class="muted small">แสดงล่าสุดสูงสุด 30 แถว</div>
       </div>
     </div>
 
@@ -57,8 +124,8 @@
             <th>Day</th>
             <th>kWh รวม</th>
             <th>ค่าไฟ (฿)</th>
-            <th>On‑Peak kWh</th>
-            <th>Off‑Peak kWh</th>
+            <th>On-Peak kWh</th>
+            <th>Off-Peak kWh</th>
             <th>Solar ใช้เอง kWh</th>
             <th>EV kWh</th>
             <th>เวลา</th>
@@ -78,11 +145,19 @@
             </tr>
           {% endfor %}
           {% if not rows %}
-            <tr><td colspan="8" class="muted">ยังไม่มีข้อมูล — ไปที่หน้า “บ้านของฉัน” แล้วกดจำลอง 1 วัน</td></tr>
+            <tr><td colspan="8" class="muted">ยังไม่มีข้อมูล — ไปที่หน้า “กลับหน้าใช้งาน” แล้วกดจำลอง 1 วัน</td></tr>
           {% endif %}
         </tbody>
       </table>
     </div>
+
+    <!-- เผื่ออนาคต: ปุ่ม Export/Report (ยังไม่ทำ route) -->
+    <!--
+    <div class="row gap mt2">
+      <a class="btn" href="{{ url_for('export_csv') }}">⬇️ Export CSV</a>
+      <a class="btn" href="{{ url_for('export_pdf') }}">⬇️ Export PDF</a>
+    </div>
+    -->
   </main>
 </div>
 </body>
