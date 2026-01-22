@@ -3,70 +3,97 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>สัตว์เลี้ยง • ENERGY LIFE V3</title>
+  <title>สัตว์เลี้ยง • ENERGY LIFE</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"/>
 </head>
 <body class="bg">
 <div class="shell">
+
   <header class="top bar">
     <div class="row gap">
-      <a class="btn" href="{{ url_for('home') }}">← กลับบ้าน</a>
+      <a class="btn" href="{{ url_for('home') }}">← กลับหน้าใช้งาน</a>
       <div>
         <div class="title">🐾 สัตว์เลี้ยง</div>
-        <div class="muted">แลกคะแนนเป็นอาหาร แล้วดูแลเพื่อนตัวน้อยของคุณ</div>
+        <div class="subtitle">โหมดเกม (Game Mode)</div>
       </div>
     </div>
   </header>
 
   <main class="card">
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        <div class="mt">
-        {% for cat,msg in messages %}
-          <div class="toast {{cat}}">{{ msg }}</div>
-        {% endfor %}
+
+    {% if app_mode == 'utility' %}
+      <!-- ===== Utility Mode : ซ่อนเกม ===== -->
+      <div class="center mt2">
+        <div class="big">🚧 ฟีเจอร์นี้ถูกปิดชั่วคราว</div>
+        <p class="muted mt">
+          ขณะนี้ระบบอยู่ใน <b>โหมดใช้งานจริง (Utility Mode)</b><br/>
+          เมนูสัตว์เลี้ยงเป็นส่วนหนึ่งของระบบเกม จึงถูกซ่อนไว้
+        </p>
+
+        <div class="mt2">
+          <a class="btn primary" href="{{ url_for('home') }}">กลับหน้าใช้งาน</a>
         </div>
-      {% endif %}
-    {% endwith %}
 
-    <div class="grid2 mt">
-      <div class="mini">
-        <div class="mini-title">คลังของคุณ</div>
-        <div class="mt">🥣 Basic: <b>{{ inv.pet_food_basic }}</b></div>
-        <div>🍖 Premium: <b>{{ inv.pet_food_premium }}</b></div>
-        <div class="mt muted">ซื้อเพิ่มได้ใน “ร้านค้า” จากหน้า Home</div>
+        <div class="divider"></div>
+        <div class="muted small">
+          * ผู้ดูแลระบบสามารถเปิด Game Mode ได้จากหน้า Admin
+        </div>
       </div>
 
-      <div class="mini">
-        <div class="mini-title">สถานะสัตว์เลี้ยง</div>
-        {% if not pet %}
-          <div class="mt">ยังไม่มีสัตว์เลี้ยง</div>
-          <div class="muted">ทำภารกิจรายสัปดาห์เพื่อรับ “ไข่สัตว์เลี้ยง”</div>
-        {% else %}
-          <div class="mt">ชนิด: <b>{{ pet.pet_type }}</b> • สเตจ: <b>{{ pet.stage }}</b></div>
-          <div class="mt">ความอิ่ม: <b>{{ pet.hunger }}</b>/100</div>
-          <div>ความสุข: <b>{{ pet.happiness }}</b>/100</div>
-          <div>เลเวล: <b>{{ pet.level }}</b></div>
+    {% else %}
+      <!-- ===== Game Mode : ระบบเดิม ===== -->
 
-          {% if pet.stage == "egg" %}
-          <form method="post" class="mt">
-            <input type="hidden" name="action" value="hatch"/>
-            <button class="btn primary" type="submit">🥚 ฟักไข่</button>
-          </form>
-          {% else %}
-          <form method="post" class="mt row gap">
-            <input type="hidden" name="action" value="feed"/>
-            <select name="food" class="input">
-              <option value="pet_food_basic">🥣 Basic (+)</option>
-              <option value="pet_food_premium">🍖 Premium (++)</option>
-            </select>
-            <button class="btn primary" type="submit">ให้อาหาร</button>
-          </form>
-          {% endif %}
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="mt">
+          {% for cat,msg in messages %}
+            <div class="toast {{cat}}">{{ msg }}</div>
+          {% endfor %}
+          </div>
         {% endif %}
+      {% endwith %}
+
+      <div class="grid2 mt">
+        <div class="mini">
+          <div class="mini-title">คลังของคุณ</div>
+          <div class="mt">🥣 Basic: <b>{{ inv.pet_food_basic }}</b></div>
+          <div>🍖 Premium: <b>{{ inv.pet_food_premium }}</b></div>
+          <div class="mt muted">ซื้อเพิ่มได้ใน “ร้านค้า” จากหน้า Home</div>
+        </div>
+
+        <div class="mini">
+          <div class="mini-title">สถานะสัตว์เลี้ยง</div>
+          {% if not pet %}
+            <div class="mt">ยังไม่มีสัตว์เลี้ยง</div>
+            <div class="muted">ทำภารกิจรายสัปดาห์เพื่อรับ “ไข่สัตว์เลี้ยง”</div>
+          {% else %}
+            <div class="mt">ชนิด: <b>{{ pet.pet_type }}</b> • สเตจ: <b>{{ pet.stage }}</b></div>
+            <div class="mt">ความอิ่ม: <b>{{ pet.hunger }}</b>/100</div>
+            <div>ความสุข: <b>{{ pet.happiness }}</b>/100</div>
+            <div>เลเวล: <b>{{ pet.level }}</b></div>
+
+            {% if pet.stage == "egg" %}
+            <form method="post" class="mt">
+              <input type="hidden" name="action" value="hatch"/>
+              <button class="btn primary" type="submit">🥚 ฟักไข่</button>
+            </form>
+            {% else %}
+            <form method="post" class="mt row gap">
+              <input type="hidden" name="action" value="feed"/>
+              <select name="food" class="input">
+                <option value="pet_food_basic">🥣 Basic (+)</option>
+                <option value="pet_food_premium">🍖 Premium (++)</option>
+              </select>
+              <button class="btn primary" type="submit">ให้อาหาร</button>
+            </form>
+            {% endif %}
+          {% endif %}
+        </div>
       </div>
-    </div>
+
+    {% endif %}
   </main>
+
 </div>
 </body>
 </html>
