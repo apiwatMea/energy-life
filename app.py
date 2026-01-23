@@ -309,13 +309,16 @@ def role_required(*roles):
 
 def default_profile():
     return {"display_name": "ผู้เล่น", "player_type": "family", "house_type": "condo", "house_size": "medium", "residents": 3}
+
+
 ROOM_TEMPLATES = {
     "bedroom": ["ac", "lights"],
     "living":  ["ac", "lights", "tv"],
     "kitchen": ["lights", "microwave"],
-    "bathroom":["water_heater", "lights"],
+    "bathroom": ["water_heater", "lights"],
     "work":    ["lights", "computer"]
 }
+
 
 def build_rooms_from_layout(layout: dict):
     rooms = {}
@@ -349,10 +352,11 @@ def default_state():
             "charge_end_hour": 6
         },
         "appliances": appliances,
-                # ===== PHASE 2: บ้าน -> ห้อง -> อุปกรณ์ =====
+
+        # ===== PHASE 2: บ้าน -> ห้อง -> อุปกรณ์ =====
         "house_layout": {
-            "enabled": False,          # ยังไม่เปิดโหมดแยกห้อง
-            "house_type": "condo",     # condo / single_1 / single_2
+            "enabled": False,
+            "house_type": "condo",
             "rooms": {
                 "bedroom": 1,
                 "bathroom": 1,
@@ -362,9 +366,7 @@ def default_state():
             }
         },
 
-        # ห้องที่ระบบจะ generate ให้ภายหลัง
         "rooms": {},
-
         "inventory": {"furniture": [], "avatar": []},
         "day_counter": 1
     }
@@ -679,6 +681,7 @@ def index():
     visitor_count = get_visitor_count()
     return render_template("index.html", visitor_count=visitor_count, app_name=APP_NAME)
 
+
 # ============================================================
 # A) HOME
 # ============================================================
@@ -749,7 +752,7 @@ def house_setup():
 
 
 # =========================
-# ROOMS SETUP (แสดงห้องที่สร้าง)
+# ROOMS SETUP (แสดงห้องที่สร้าง)  ✅ ต้องมีแค่อันเดียว
 # =========================
 @app.route("/rooms-setup", methods=["GET"])
 @login_required
@@ -768,33 +771,7 @@ def rooms_setup():
 
 
 # =========================
-# ROOM DETAIL (ตั้งค่าอุปกรณ์ในห้อง) - เตรียมไว้ก่อน
-# =========================
-@app.route("/room/<rid>", methods=["GET"])
-@login_required
-def room_detail(rid):
-    user = current_user()
-    st = get_or_create_user_state(user["id"])
-    rooms = (st.get("state") or {}).get("rooms") or {}
-    room = rooms.get(rid)
-
-    if not room:
-        flash("ไม่พบห้องนี้", "error")
-        return redirect(url_for("rooms_setup"))
-
-    return render_template(
-        "room_detail.html",   # (ถ้ายังไม่มีไฟล์นี้ ให้คอมเมนต์ route นี้ไว้ก่อนได้)
-        user=user,
-        st=st,
-        rid=rid,
-        room=room,
-        app_name=APP_NAME
-    )
-
-
-
-# =========================
-# ROOM DETAIL (ตั้งค่าอุปกรณ์ในห้อง)
+# ROOM DETAIL (ตั้งค่าอุปกรณ์ในห้อง) ✅ เหลืออันเดียว (GET/POST)
 # =========================
 def _catalog_by_key():
     return {a["key"]: a for a in APPLIANCES_CATALOG}
@@ -854,7 +831,6 @@ def room_detail(rid):
     room["appliances"] = appl
 
     if request.method == "POST":
-        # update each appliance present in this room
         for key in appl.keys():
             c = catalog.get(key)
             if not c:
@@ -881,31 +857,31 @@ def room_detail(rid):
                 cfg["kwh_per_day"] = _to_float_form(f"{key}__kwh_per_day", cfg.get("kwh_per_day", 1.2), 0, 30)
 
             else:
-                # generic / standby
                 cfg["watts"] = _to_float_form(f"{key}__watts", cfg.get("watts", 100), 0, 100000)
                 cfg["hours"] = _to_float_form(f"{key}__hours", cfg.get("hours", 1), 0, 24)
 
             appl[key] = cfg
 
-        # save back
         rooms[rid]["appliances"] = appl
         state["rooms"] = rooms
         save_user_state(user["id"], st["profile"], state, st["points"], st["house_level"])
         flash("บันทึกอุปกรณ์ในห้องแล้ว ✅", "success")
         return redirect(url_for("room_detail", rid=rid))
 
-    return render_template(
-        "room_detail.html",
-        user=user,
-        st=st,
-        room_id=rid,
-        room=room,
-        catalog=catalog,
-        app_name=APP_NAME
-    )
-# ============================================================
-# C) ROOMS SETUP (แสดงห้องที่สร้าง)  *** ต้องมีแค่อันเดียว ***
-# ============================================================
+    # ✅ กันพังถ้า room_detail.html ยังไม่มี
+    try:
+        return render_template(
+            "room_detail.html",
+            user=user,
+            st=st,
+            room_id=rid,
+            room=room,
+            catalog=catalog,
+            app_name=APP_NAME
+        )
+    except Exception:
+        flash("ยังไม่มีหน้า room_detail.html (ให้สร้างไฟล์นี้ก่อน) — ตอนนี้พากลับ Rooms Setup", "error")
+        return redirect(url_for("rooms_setup"))
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -959,14 +935,12 @@ def register():
     return render_template("register.html", app_name=APP_NAME)
 
 
-# ===== FIX 3: logout กลับหน้า index ชัวร์ ๆ =====
 @app.route("/logout")
 def logout():
     session.clear()
     return redirect(url_for("index"))
 
 
-# -------- API --------
 @app.route("/api/state", methods=["GET", "POST"])
 @login_required
 def api_state():
@@ -1022,16 +996,12 @@ def api_simulate_day():
     ))
     db.commit()
 
-    # โหมดใช้งานจริง: ไม่สะสมคะแนนอันดับรายสัปดาห์
-    # weekly_add_score(user["id"], delta_points)
-
     state["day_counter"] = int(state.get("day_counter", 1)) + 1
     save_user_state(user["id"], profile, state, points_new, level_new)
 
     return jsonify({"result": res, "points": points_new, "house_level": level_new, "day_counter": state["day_counter"]})
 
 
-# ปิดร้านค้าในโหมดใช้งานจริง
 @app.route("/api/shop", methods=["GET"])
 @login_required
 def api_shop():
@@ -1115,9 +1085,6 @@ def admin_user(user_id):
     return render_template("admin_user.html", u=user, st=st, rows=rows, levels=HOUSE_LEVELS)
 
 
-# ------------------------------
-# V3: Inventory / Missions / Pets / Leaderboard / Share / User Settings
-# ------------------------------
 def inv_get(user_id: int, item_key: str) -> int:
     db = get_db()
     row = db.execute("SELECT qty FROM inventory WHERE user_id=? AND item_key=?", (user_id, item_key)).fetchone()
@@ -1192,7 +1159,6 @@ def save_user_prefs(user_id: int, prefs: dict):
     db.commit()
 
 
-# ====== โหมดเกม: routes ด้านล่างจะ "ปิด" เมื่อ ENABLE_GAME = False ======
 def _game_disabled_redirect():
     flash("โหมดเกมถูกปิดชั่วคราว (โหมดใช้งานจริง)", "error")
     return redirect(url_for("home"))
@@ -1203,7 +1169,6 @@ def _game_disabled_redirect():
 def missions():
     if not ENABLE_GAME:
         return _game_disabled_redirect()
-    # ถ้าเปิดเกมค่อยใส่ logic เดิมกลับมา
     return _game_disabled_redirect()
 
 
@@ -1262,8 +1227,6 @@ def profile():
             flash("ชื่อที่แสดงต้องยาว 3–16 ตัวอักษร", "error")
             return redirect(url_for("profile"))
 
-        # โหมดใช้งานจริง: ยังอนุญาตเปลี่ยนชื่อได้ไหม?
-        # ตอนนี้ยังใช้ไอเท็มเดิม ถ้าต้องการให้เปลี่ยนชื่อได้เลยโดยไม่ใช้ตั๋ว บอกผมได้
         if inv_get(user["id"], "name_change_ticket") <= 0:
             flash("ต้องมีไอเท็ม ‘ตั๋วเปลี่ยนชื่อ’ ก่อนถึงจะเปลี่ยนชื่อได้", "error")
             return redirect(url_for("profile"))
