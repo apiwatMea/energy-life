@@ -21,6 +21,16 @@
   <main class="card">
     {% set rooms = rooms or {} %}
 
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="mt">
+        {% for cat,msg in messages %}
+          <div class="toast {{cat}}">{{ msg }}</div>
+        {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
     {% if rooms|length == 0 %}
       <div class="muted">ยังไม่มีห้อง — ไปที่ “ตั้งค่าโครงสร้างบ้าน” ก่อน</div>
     {% else %}
@@ -31,13 +41,18 @@
             <div class="mini-title">{{ rid }}</div>
             <div class="muted">ประเภท: {{ r.type }}</div>
             <div class="mt small muted">อุปกรณ์พื้นฐาน: {{ (aps.keys()|list)|join(", ") }}</div>
+
+            <!-- ✅ ปุ่มไปหน้าตั้งค่าอุปกรณ์รายห้อง -->
+            <div class="mt">
+              <a class="btn primary" href="{{ url_for('room_detail', rid=rid) }}">ตั้งค่าอุปกรณ์ในห้องนี้</a>
+            </div>
           </div>
         {% endfor %}
       </div>
 
       <div class="divider"></div>
       <div class="muted">
-        ขั้นต่อไป: ทำหน้า “ตั้งค่าอุปกรณ์ตามห้อง” (เช่น /room/&lt;rid&gt;)
+        ขั้นต่อไป: กดปุ่ม “ตั้งค่าอุปกรณ์ในห้องนี้” เพื่อเข้า /room/&lt;rid&gt;
       </div>
     {% endif %}
   </main>
