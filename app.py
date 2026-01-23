@@ -679,6 +679,9 @@ def index():
     visitor_count = get_visitor_count()
     return render_template("index.html", visitor_count=visitor_count, app_name=APP_NAME)
 
+# ============================================================
+# A) HOME
+# ============================================================
 @app.route("/home")
 @login_required
 def home():
@@ -697,9 +700,9 @@ def home():
     )
 
 
-# =========================
-# HOUSE SETUP (กำหนดโครงสร้างบ้าน)
-# =========================
+# ============================================================
+# B) HOUSE SETUP (กำหนดโครงสร้างบ้าน)
+# ============================================================
 @app.route("/house-setup", methods=["GET", "POST"])
 @login_required
 def house_setup():
@@ -745,9 +748,9 @@ def house_setup():
     return render_template("house_setup.html", user=user, st=st, app_name=APP_NAME)
 
 
-# =========================
-# ROOMS SETUP (แสดงห้องที่สร้าง)
-# =========================
+# ============================================================
+# C) ROOMS SETUP (แสดงห้องที่สร้าง)  *** ต้องมีแค่อันเดียว ***
+# ============================================================
 @app.route("/rooms-setup", methods=["GET"])
 @login_required
 def rooms_setup():
@@ -755,39 +758,6 @@ def rooms_setup():
     st = get_or_create_user_state(user["id"])
     rooms = (st.get("state") or {}).get("rooms") or {}
     return render_template("rooms_setup.html", user=user, st=st, rooms=rooms, app_name=APP_NAME)
-
-
-# =========================
-# ROOMS SETUP (ตั้งค่าอุปกรณ์รายห้อง)
-# =========================
-@app.route("/rooms-setup", methods=["GET"])
-@login_required
-def rooms_setup():
-    user = current_user()
-    st = get_or_create_user_state(user["id"])
-    rooms = st["state"].get("rooms", {})
-
-    return render_template(
-        "rooms_setup.html",
-        user=user,
-        st=st,
-        rooms=rooms,
-        app_name=APP_NAME
-    )
-
-
-    user = current_user()
-    st = get_or_create_user_state(user["id"])
-    return render_template(
-        "home.html",
-        user=user,
-        profile=st["profile"],
-        state=st["state"],
-        points=st["points"],
-        house_level=st["house_level"],
-        levels=HOUSE_LEVELS,
-        appliances_catalog=APPLIANCES_CATALOG
-    )
 
 
 @app.route("/login", methods=["GET", "POST"])
