@@ -700,9 +700,9 @@ def home():
     )
 
 
-# ============================================================
-# B) HOUSE SETUP (กำหนดโครงสร้างบ้าน)
-# ============================================================
+# =========================
+# HOUSE SETUP (กำหนดโครงสร้างบ้าน)
+# =========================
 @app.route("/house-setup", methods=["GET", "POST"])
 @login_required
 def house_setup():
@@ -748,6 +748,128 @@ def house_setup():
     return render_template("house_setup.html", user=user, st=st, app_name=APP_NAME)
 
 
+# =========================
+# ROOMS SETUP (แสดงห้องที่สร้าง)
+# =========================
+@app.route("/rooms-setup", methods=["GET"])
+@login_required
+def rooms_setup():
+    user = current_user()
+    st = get_or_create_user_state(user["id"])
+    rooms = (st.get("state") or {}).get("rooms") or {}
+    return render_template("rooms_setup.html", user=user, st=st, rooms=rooms, app_name=APP_NAME)
+
+
+# =========================
+# ROOM DETAIL (ตั้งค่าอุปกรณ์ในห้อง)
+# =========================
+def _catalog_by_key():
+    return {a["key"]: a for a in APPLIANCES_CATALOG}
+
+def _to_bool(v):
+    return str(v).lower() in ("1", "true", "on", "yes")
+
+def _to_int_form(name, default=0, min_v=None, max_v=None):
+    try:
+        v = int(request.form.get(name, default) or default)
+    except Exception:
+        v = int(default)
+    if min_v is not None:
+        v = max(min_v, v)
+    if max_v is not None:
+        v = min(max_v, v)
+    return v
+
+def _to_float_form(name, default=0.0, min_v=None, max_v=None):
+    try:
+        v = float(request.form.get(name, default) or default)
+    except Exception:
+        v = float(default)
+    if min_v is not None:
+        v = max(min_v, v)
+    if max_v is not None:
+        v = min(max_v, v)
+    return v
+
+@app.route("/room/<rid>", methods=["GET", "POST"])
+@login_required
+def room_detail(rid):
+    user = current_user()
+    st = get_or_create_user_state(user["id"])
+    state = st["state"]
+    rooms = state.get("rooms") or {}
+
+    if rid not in rooms:
+        flash("ไม่พบห้องนี้ (ลองกลับไปหน้า Rooms Setup)", "error")
+        return redirect(url_for("rooms_setup"))
+
+    room = rooms[rid]
+    catalog = _catalog_by_key()
+
+    # ensure appliance configs exist (merge defaults)
+    appl = room.get("appliances") or {}
+    for k in list(appl.keys()):
+        c = catalog.get(k)
+        if not c:
+            continue
+        if not isinstance(appl.get(k), dict) or len(appl.get(k)) == 0:
+            appl[k] = dict(c["defaults"])
+        else:
+            merged = dict(c["defaults"])
+            merged.update(appl[k])
+            appl[k] = merged
+    room["appliances"] = appl
+
+    if request.method == "POST":
+        # update each appliance present in this room
+        for key in appl.keys():
+            c = catalog.get(key)
+            if not c:
+                continue
+
+            cfg = dict(appl.get(key) or c["defaults"])
+            cfg["enabled"] = _to_bool(request.form.get(f"{key}__enabled", "off"))
+
+            t = c.get("type")
+            if t == "ac":
+                cfg["btu"] = _to_int_form(f"{key}__btu", cfg.get("btu", 12000), 6000, 60000)
+                cfg["set_temp"] = _to_int_form(f"{key}__set_temp", cfg.get("set_temp", 26), 16, 30)
+                cfg["hours"] = _to_float_form(f"{key}__hours", cfg.get("hours", 6), 0, 24)
+                cfg["inverter"] = _to_bool(request.form.get(f"{key}__inverter", "off"))
+                cfg["start_hour"] = _to_int_form(f"{key}__start_hour", cfg.get("start_hour", 20), 0, 23)
+                cfg["end_hour"] = _to_int_form(f"{key}__end_hour", cfg.get("end_hour", 2), 0, 23)
+
+            elif t == "lights":
+                cfg["mode"] = request.form.get(f"{key}__mode", cfg.get("mode", "LED"))
+                cfg["watts"] = _to_float_form(f"{key}__watts", cfg.get("watts", 30), 0, 5000)
+                cfg["hours"] = _to_float_form(f"{key}__hours", cfg.get("hours", 5), 0, 24)
+
+            elif t == "fridge":
+                cfg["kwh_per_day"] = _to_float_form(f"{key}__kwh_per_day", cfg.get("kwh_per_day", 1.2), 0, 30)
+
+            else:
+                # generic / standby
+                cfg["watts"] = _to_float_form(f"{key}__watts", cfg.get("watts", 100), 0, 100000)
+                cfg["hours"] = _to_float_form(f"{key}__hours", cfg.get("hours", 1), 0, 24)
+
+            appl[key] = cfg
+
+        # save back
+        rooms[rid]["appliances"] = appl
+        state["rooms"] = rooms
+        save_user_state(user["id"], st["profile"], state, st["points"], st["house_level"])
+        flash("บันทึกอุปกรณ์ในห้องแล้ว ✅", "success")
+        return redirect(url_for("room_detail", rid=rid))
+
+    return render_template(
+        "room_detail.html",
+        user=user,
+        st=st,
+        room_id=rid,
+        room=room,
+        catalog=catalog,
+        app_name=APP_NAME
+    )
 # ============================================================
 # C) ROOMS SETUP (แสดงห้องที่สร้าง)  *** ต้องมีแค่อันเดียว ***
 # ============================================================
