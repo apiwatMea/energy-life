@@ -757,7 +757,39 @@ def rooms_setup():
     user = current_user()
     st = get_or_create_user_state(user["id"])
     rooms = (st.get("state") or {}).get("rooms") or {}
-    return render_template("rooms_setup.html", user=user, st=st, rooms=rooms, app_name=APP_NAME)
+
+    return render_template(
+        "rooms_setup.html",
+        user=user,
+        st=st,
+        rooms=rooms,
+        app_name=APP_NAME
+    )
+
+
+# =========================
+# ROOM DETAIL (ตั้งค่าอุปกรณ์ในห้อง) - เตรียมไว้ก่อน
+# =========================
+@app.route("/room/<rid>", methods=["GET"])
+@login_required
+def room_detail(rid):
+    user = current_user()
+    st = get_or_create_user_state(user["id"])
+    rooms = (st.get("state") or {}).get("rooms") or {}
+    room = rooms.get(rid)
+
+    if not room:
+        flash("ไม่พบห้องนี้", "error")
+        return redirect(url_for("rooms_setup"))
+
+    return render_template(
+        "room_detail.html",   # (ถ้ายังไม่มีไฟล์นี้ ให้คอมเมนต์ route นี้ไว้ก่อนได้)
+        user=user,
+        st=st,
+        rid=rid,
+        room=room,
+        app_name=APP_NAME
+    )
 
 
 
@@ -874,13 +906,6 @@ def room_detail(rid):
 # ============================================================
 # C) ROOMS SETUP (แสดงห้องที่สร้าง)  *** ต้องมีแค่อันเดียว ***
 # ============================================================
-@app.route("/rooms-setup", methods=["GET"])
-@login_required
-def rooms_setup():
-    user = current_user()
-    st = get_or_create_user_state(user["id"])
-    rooms = (st.get("state") or {}).get("rooms") or {}
-    return render_template("rooms_setup.html", user=user, st=st, rooms=rooms, app_name=APP_NAME)
 
 
 @app.route("/login", methods=["GET", "POST"])
