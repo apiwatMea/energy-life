@@ -760,6 +760,7 @@ def rooms_setup():
     return render_template("rooms_setup.html", user=user, st=st, rooms=rooms, app_name=APP_NAME)
 
 
+
 # =========================
 # ROOM DETAIL (ตั้งค่าอุปกรณ์ในห้อง)
 # =========================
