@@ -10,226 +10,176 @@
 <body class="bg">
 <div class="shell">
 
+  <!-- ===== Header ===== -->
   <header class="top bar">
-    <div class="row gap" style="justify-content:space-between;align-items:center;flex-wrap:wrap;">
-      <div class="row gap" style="align-items:center;">
-        <a class="btn" href="{{ url_for('rooms_setup') }}">← กลับไปหน้าห้อง</a>
-        <div>
-          <div class="title">🧩 ตั้งค่าอุปกรณ์ตามห้อง</div>
-          <div class="subtitle">
-            ห้อง: <b>{{ room_id }}</b> • ประเภท: <b>{{ room.type }}</b> • ปรับอุปกรณ์เป็นรายห้อง (โหมดใหม่)
-          </div>
+    <div class="row gap">
+      <a class="btn" href="{{ url_for('rooms_setup') }}">← กลับไปหน้าห้อง</a>
+      <div>
+        <div class="title">🧩 ตั้งค่าอุปกรณ์รายห้อง</div>
+        <div class="subtitle">
+          ห้อง: <strong>{{ room_id }}</strong> ({{ room.type }})
         </div>
-      </div>
-
-      <div class="row gap" style="align-items:center;">
-        <span class="pill">
-          ✅ บันทึกแล้วจะส่งผลต่อการคำนวณ “จำลอง 1 วัน”
-        </span>
       </div>
     </div>
   </header>
 
   <main class="card">
 
+    <!-- ===== Flash ===== -->
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
         <div class="mt">
-          {% for cat,msg in messages %}
-            <div class="toast {{cat}}">{{ msg }}</div>
-          {% endfor %}
+        {% for cat,msg in messages %}
+          <div class="toast {{cat}}">{{ msg }}</div>
+        {% endfor %}
         </div>
       {% endif %}
     {% endwith %}
 
-    <!-- Helper: คำนวณคร่าวๆ (เพื่อชี้แจงลูกค้าง่าย) -->
-    {% set total_kwh = namespace(v=0.0) %}
-    {% set total_watts = namespace(v=0.0) %}
+    <form method="post" class="form mt">
 
-    <div class="mini">
-      <div class="mini-title">สรุปการตั้งค่าห้องนี้</div>
-      <div class="muted">
-        - เปิด/ปิดอุปกรณ์แต่ละชิ้นได้<br/>
-        - ถ้า “เปิดใช้งาน” = ระบบจะนำไปคิดไฟในวันจำลอง<br/>
-        - ค่านี้เป็น “ค่าประเมิน” เพื่อให้ลูกค้าเข้าใจง่าย (ปรับตามของจริงได้)
-      </div>
-    </div>
+      {% for key, cfg in room.appliances.items() %}
+        {% set c = catalog.get(key) %}
 
-    <div class="divider"></div>
+        <div class="mini mt">
 
-    <form method="post" class="form">
+          <!-- ===================== -->
+          <!-- Header ของอุปกรณ์ -->
+          <!-- ===================== -->
+          <div class="row gap" style="justify-content:space-between;align-items:center;">
+            <div>
+              <div class="mini-title">
+                {{ c.icon if c else "🔧" }}
+                {{ c.name if c else key }}
+              </div>
+              <div class="muted small">
+                key: {{ key }} | type: {{ c.type if c else "-" }}
+              </div>
+            </div>
+          </div>
 
-      <div class="grid2 mt">
-        <!-- ซ้าย: รายการอุปกรณ์ -->
-        <div>
+          <!-- ===================== -->
+          <!-- 1) เปิดใช้งาน -->
+          <!-- ===================== -->
+          <div class="mt2">
+            <div class="badge">① เปิดใช้งาน</div>
+            <label class="row gap mt1" style="align-items:center;">
+              <input type="checkbox" name="{{ key }}__enabled"
+                     {% if cfg.enabled %}checked{% endif %}>
+              <span class="muted">เปิดอุปกรณ์นี้ในห้อง</span>
+            </label>
+          </div>
 
-          {% for key, cfg in room.appliances.items() %}
-            {% set c = catalog.get(key) %}
+          <!-- ===================== -->
+          <!-- 2) ตั้งค่าการใช้ไฟ -->
+          <!-- ===================== -->
+          <div class="mt2">
+            <div class="badge">② ตั้งค่าการใช้ไฟ</div>
 
-            <!-- คำนวณคร่าวๆ -->
-            {% if cfg.enabled %}
-              {% if c and c.type == "ac" %}
-                {% set _kwh = ((cfg.btu or 12000) / 12000.0) * (cfg.hours or 6) %}
-                {% set total_kwh.v = total_kwh.v + _kwh %}
-              {% elif c and c.type == "fridge" %}
-                {% set _kwh = (cfg.kwh_per_day or 1.2) %}
-                {% set total_kwh.v = total_kwh.v + _kwh %}
-              {% else %}
-                {% set _kwh = ((cfg.watts or 0) / 1000.0) * (cfg.hours or 0) %}
-                {% set total_kwh.v = total_kwh.v + _kwh %}
-                {% set total_watts.v = total_watts.v + (cfg.watts or 0) %}
-              {% endif %}
-            {% endif %}
-
-            <div class="mini mt">
-              <div class="row gap" style="justify-content:space-between;align-items:center;flex-wrap:wrap;">
+            {% if c and c.type == "ac" %}
+              <div class="grid3 mt1">
                 <div>
-                  <div class="mini-title">
-                    {{ c.icon if c else "" }} {{ c.name if c else key }}
-                    {% if cfg.enabled %}
-                      <span class="tag ok">ON</span>
-                    {% else %}
-                      <span class="tag off">OFF</span>
-                    {% endif %}
-                  </div>
-                  <div class="muted small">key: {{ key }}{% if c %} • type: {{ c.type }}{% endif %}</div>
+                  <div class="muted small">BTU</div>
+                  <input type="number" name="{{ key }}__btu"
+                         value="{{ cfg.btu or 12000 }}" min="6000" max="60000">
                 </div>
-
-                <label class="row gap" style="align-items:center;">
-                  <input type="checkbox" name="{{ key }}__enabled" {% if cfg.enabled %}checked{% endif %}>
-                  <span class="muted">เปิดใช้งาน</span>
-                </label>
+                <div>
+                  <div class="muted small">อุณหภูมิ (°C)</div>
+                  <input type="number" name="{{ key }}__set_temp"
+                         value="{{ cfg.set_temp or 26 }}" min="16" max="30">
+                </div>
+                <div>
+                  <div class="muted small">ชั่วโมง/วัน</div>
+                  <input type="number" step="0.1" name="{{ key }}__hours"
+                         value="{{ cfg.hours or 6 }}" min="0" max="24">
+                </div>
               </div>
 
-              {% if c and c.type == "ac" %}
-                <div class="grid3 mt2">
-                  <div>
-                    <div class="muted small">BTU</div>
-                    <input type="number" name="{{ key }}__btu" value="{{ cfg.btu or 12000 }}" min="6000" max="60000">
-                    <div class="muted small">แนะนำ: 9,000–18,000 BTU</div>
-                  </div>
-                  <div>
-                    <div class="muted small">อุณหภูมิ (°C)</div>
-                    <input type="number" name="{{ key }}__set_temp" value="{{ cfg.set_temp or 26 }}" min="16" max="30">
-                    <div class="muted small">ประหยัดสุด: 26°C</div>
-                  </div>
-                  <div>
-                    <div class="muted small">ชั่วโมง/วัน</div>
-                    <input type="number" step="0.1" name="{{ key }}__hours" value="{{ cfg.hours or 6 }}" min="0" max="24">
-                    <div class="muted small">เช่น 6 ชม./วัน</div>
-                  </div>
-                </div>
+              <label class="row gap mt1" style="align-items:center;">
+                <input type="checkbox" name="{{ key }}__inverter"
+                       {% if cfg.inverter %}checked{% endif %}>
+                <span class="muted">Inverter (ประหยัดไฟกว่า)</span>
+              </label>
 
-                <div class="grid3 mt2">
-                  <div>
-                    <div class="muted small">เริ่มเปิด (ชั่วโมง)</div>
-                    <input type="number" name="{{ key }}__start_hour" value="{{ cfg.start_hour or 20 }}" min="0" max="23">
-                  </div>
-                  <div>
-                    <div class="muted small">ปิด (ชั่วโมง)</div>
-                    <input type="number" name="{{ key }}__end_hour" value="{{ cfg.end_hour or 2 }}" min="0" max="23">
-                  </div>
-                  <div class="row gap" style="align-items:center;margin-top:22px;">
-                    <input type="checkbox" name="{{ key }}__inverter" {% if cfg.inverter %}checked{% endif %}>
-                    <span class="muted">Inverter</span>
-                  </div>
+            {% elif c and c.type == "lights" %}
+              <div class="grid3 mt1">
+                <div>
+                  <div class="muted small">ชนิดหลอด</div>
+                  <select name="{{ key }}__mode">
+                    <option value="LED" {% if cfg.mode == "LED" %}selected{% endif %}>LED</option>
+                    <option value="Normal" {% if cfg.mode == "Normal" %}selected{% endif %}>Normal</option>
+                  </select>
                 </div>
-
-              {% elif c and c.type == "lights" %}
-                <div class="grid3 mt2">
-                  <div>
-                    <div class="muted small">ชนิดหลอด</div>
-                    <select name="{{ key }}__mode">
-                      <option value="LED" {% if (cfg.mode or "LED") == "LED" %}selected{% endif %}>LED (ประหยัด)</option>
-                      <option value="Normal" {% if (cfg.mode or "") == "Normal" %}selected{% endif %}>Normal</option>
-                    </select>
-                  </div>
-                  <div>
-                    <div class="muted small">กำลังไฟรวม (W)</div>
-                    <input type="number" step="1" name="{{ key }}__watts" value="{{ cfg.watts or 30 }}" min="0" max="5000">
-                    <div class="muted small">เช่น 30W (รวมทั้งห้อง)</div>
-                  </div>
-                  <div>
-                    <div class="muted small">ชั่วโมง/วัน</div>
-                    <input type="number" step="0.1" name="{{ key }}__hours" value="{{ cfg.hours or 5 }}" min="0" max="24">
-                  </div>
+                <div>
+                  <div class="muted small">กำลังไฟรวม (W)</div>
+                  <input type="number" name="{{ key }}__watts"
+                         value="{{ cfg.watts or 30 }}" min="0" max="5000">
                 </div>
-
-              {% elif c and c.type == "fridge" %}
-                <div class="grid3 mt2">
-                  <div>
-                    <div class="muted small">kWh ต่อวัน</div>
-                    <input type="number" step="0.1" name="{{ key }}__kwh_per_day" value="{{ cfg.kwh_per_day or 1.2 }}" min="0" max="30">
-                    <div class="muted small">ตัวอย่าง: 1.2 kWh/วัน</div>
-                  </div>
+                <div>
+                  <div class="muted small">ชั่วโมง/วัน</div>
+                  <input type="number" step="0.1" name="{{ key }}__hours"
+                         value="{{ cfg.hours or 5 }}" min="0" max="24">
                 </div>
+              </div>
 
-              {% else %}
-                <div class="grid3 mt2">
-                  <div>
-                    <div class="muted small">กำลังไฟ (W)</div>
-                    <input type="number" step="1" name="{{ key }}__watts" value="{{ cfg.watts or 100 }}" min="0" max="100000">
-                  </div>
-                  <div>
-                    <div class="muted small">ชั่วโมง/วัน</div>
-                    <input type="number" step="0.1" name="{{ key }}__hours" value="{{ cfg.hours or 1 }}" min="0" max="24">
-                  </div>
-                  <div class="muted small">
-                    * ถ้าไม่แน่ใจ ให้ใส่ “ค่าเฉลี่ยต่อวัน” ก่อน แล้วค่อยปรับภายหลัง
-                  </div>
+            {% elif c and c.type == "fridge" %}
+              <div class="grid3 mt1">
+                <div>
+                  <div class="muted small">kWh ต่อวัน</div>
+                  <input type="number" step="0.1"
+                         name="{{ key }}__kwh_per_day }}"
+                         value="{{ cfg.kwh_per_day or 1.2 }}" min="0" max="30">
                 </div>
-              {% endif %}
-            </div>
-          {% endfor %}
+              </div>
 
-          <div class="row gap mt">
-            <button class="btn primary" type="submit">💾 บันทึกการตั้งค่า</button>
-            <a class="btn" href="{{ url_for('rooms_setup') }}">↩ กลับ</a>
+            {% else %}
+              <div class="grid3 mt1">
+                <div>
+                  <div class="muted small">กำลังไฟ (W)</div>
+                  <input type="number" name="{{ key }}__watts"
+                         value="{{ cfg.watts or 100 }}" min="0" max="100000">
+                </div>
+                <div>
+                  <div class="muted small">ชั่วโมง/วัน</div>
+                  <input type="number" step="0.1" name="{{ key }}__hours"
+                         value="{{ cfg.hours or 1 }}" min="0" max="24">
+                </div>
+              </div>
+            {% endif %}
           </div>
 
-        </div>
-
-        <!-- ขวา: สรุปให้ลูกค้าอ่านง่าย -->
-        <div>
-          <div class="mini">
-            <div class="mini-title">ภาพรวม (เพื่ออธิบายลูกค้า)</div>
-
-            <div class="grid2 mt2">
-              <div class="stat">
-                <div class="muted small">ประมาณการใช้ไฟ/วัน</div>
-                <div class="big">{{ "%.2f"|format(total_kwh.v) }} kWh</div>
-                <div class="muted small">คำนวณจากค่าที่เปิดใช้งานในห้องนี้</div>
+          <!-- ===================== -->
+          <!-- 3) เวลาใช้งาน (ถ้ามี) -->
+          <!-- ===================== -->
+          {% if c and c.type == "ac" %}
+          <div class="mt2">
+            <div class="badge">③ เวลาใช้งาน</div>
+            <div class="grid3 mt1">
+              <div>
+                <div class="muted small">เริ่ม (ชั่วโมง)</div>
+                <input type="number" name="{{ key }}__start_hour"
+                       value="{{ cfg.start_hour or 20 }}" min="0" max="23">
               </div>
-              <div class="stat">
-                <div class="muted small">กำลังไฟรวม (เฉพาะ W)</div>
-                <div class="big">{{ "%.0f"|format(total_watts.v) }} W</div>
-                <div class="muted small">ไม่รวมแอร์/ตู้เย็น (คิดแบบ kWh)</div>
+              <div>
+                <div class="muted small">สิ้นสุด (ชั่วโมง)</div>
+                <input type="number" name="{{ key }}__end_hour"
+                       value="{{ cfg.end_hour or 2 }}" min="0" max="23">
               </div>
-            </div>
-
-            <div class="divider"></div>
-
-            <div class="muted">
-              <b>Tips แนะนำ</b><br/>
-              • ถ้าลูกค้าบอก “อยากประหยัด” → ลดชั่วโมงใช้งาน/ตั้งแอร์ 26°C<br/>
-              • ถ้าบ้านมี TOU → ย้ายโหลดหนักไปช่วง Off-Peak<br/>
-              • ถ้าเปิดห้องแล้วไม่เห็นผล → ตรวจว่า “เปิดใช้งาน” แล้วหรือยัง
-            </div>
-
-            <div class="divider"></div>
-
-            <div class="muted small">
-              หมายเหตุ: หน้านี้เป็น “การตั้งค่าเฉพาะห้อง” (Phase 2) ส่วนหน้า Home ยังเป็น “รวมบ้าน”
-              ถ้าต้องการให้หน้า Home ดึงค่ารวมจากทุกห้อง ผมจะทำให้เป็น Phase ถัดไปได้เลย
             </div>
           </div>
+          {% endif %}
+
         </div>
+      {% endfor %}
+
+      <!-- ===== Actions ===== -->
+      <div class="row gap mt">
+        <button class="btn primary" type="submit">💾 บันทึกการตั้งค่า</button>
+        <a class="btn" href="{{ url_for('rooms_setup') }}">ยกเลิก</a>
       </div>
 
     </form>
   </main>
 </div>
-
-<!-- เล็กน้อย: ถ้า style.css ยังไม่มีคลาสพวกนี้ ก็ไม่พัง แค่ไม่สวยเต็ม -->
 </body>
 </html>
