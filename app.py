@@ -52,15 +52,24 @@ DEFAULT_TARIFF = {
 
 
 APPLIANCES_CATALOG = [
-    {"key": "ac", "name": "แอร์", "icon": "❄️", "type": "ac", "defaults": {"enabled": True, "btu": 12000, "set_temp": 26, "hours": 6, "inverter": True, "start_hour": 20, "end_hour": 2}},
-    {"key": "lights", "name": "ไฟ", "icon": "💡", "type": "lights", "defaults": {"enabled": True, "mode": "LED", "watts": 30, "hours": 5}},
-    {"key": "tv", "name": "ทีวี", "icon": "📺", "type": "generic", "defaults": {"enabled": True, "watts": 120, "hours": 3}},
-    {"key": "fridge", "name": "ตู้เย็น", "icon": "🧊", "type": "fridge", "defaults": {"enabled": True, "kwh_per_day": 1.2}},
-    {"key": "water_heater", "name": "เครื่องทำน้ำอุ่น", "icon": "🚿", "type": "generic", "defaults": {"enabled": False, "watts": 3500, "hours": 0.3}},
-    {"key": "washer", "name": "เครื่องซักผ้า", "icon": "🧺", "type": "generic", "defaults": {"enabled": False, "watts": 500, "hours": 0.5}},
-    {"key": "microwave", "name": "ไมโครเวฟ", "icon": "🍳", "type": "generic", "defaults": {"enabled": False, "watts": 1200, "hours": 0.1}},
-    {"key": "computer", "name": "คอมพิวเตอร์", "icon": "💻", "type": "generic", "defaults": {"enabled": False, "watts": 200, "hours": 2}},
-    {"key": "standby", "name": "ไฟสแตนด์บาย", "icon": "🔌", "type": "standby", "defaults": {"enabled": True, "watts": 20, "hours": 24}},
+    {"key": "ac", "name": "แอร์", "icon": "❄️", "type": "ac",
+     "defaults": {"enabled": True, "btu": 12000, "set_temp": 26, "hours": 6, "inverter": True, "start_hour": 20, "end_hour": 2}},
+    {"key": "lights", "name": "ไฟ", "icon": "💡", "type": "lights",
+     "defaults": {"enabled": True, "mode": "LED", "watts": 30, "hours": 5}},
+    {"key": "tv", "name": "ทีวี", "icon": "📺", "type": "generic",
+     "defaults": {"enabled": True, "watts": 120, "hours": 3}},
+    {"key": "fridge", "name": "ตู้เย็น", "icon": "🧊", "type": "fridge",
+     "defaults": {"enabled": True, "kwh_per_day": 1.2}},
+    {"key": "water_heater", "name": "เครื่องทำน้ำอุ่น", "icon": "🚿", "type": "generic",
+     "defaults": {"enabled": False, "watts": 3500, "hours": 0.3}},
+    {"key": "washer", "name": "เครื่องซักผ้า", "icon": "🧺", "type": "generic",
+     "defaults": {"enabled": False, "watts": 500, "hours": 0.5}},
+    {"key": "microwave", "name": "ไมโครเวฟ", "icon": "🍳", "type": "generic",
+     "defaults": {"enabled": False, "watts": 1200, "hours": 0.1}},
+    {"key": "computer", "name": "คอมพิวเตอร์", "icon": "💻", "type": "generic",
+     "defaults": {"enabled": False, "watts": 200, "hours": 2}},
+    {"key": "standby", "name": "ไฟสแตนด์บาย", "icon": "🔌", "type": "standby",
+     "defaults": {"enabled": True, "watts": 20, "hours": 24}},
 ]
 
 # ยังเก็บไว้เผื่อเปิดเกมทีหลัง แต่โหมดใช้งานจริงจะปิด API shop/buy
@@ -329,6 +338,7 @@ def build_rooms_from_layout(layout: dict):
             rooms[rid] = {
                 "type": room_type,
                 "label": f"{room_type.capitalize()} {i}",
+                # NOTE: เก็บ key ของอุปกรณ์ไว้ก่อน เดี๋ยวไป merge defaults ที่ /room/<rid>
                 "appliances": {k: {} for k in ROOM_TEMPLATES.get(room_type, [])}
             }
     return rooms
@@ -367,6 +377,7 @@ def default_state():
         },
 
         "rooms": {},
+
         "inventory": {"furniture": [], "avatar": []},
         "day_counter": 1
     }
@@ -683,7 +694,7 @@ def index():
 
 
 # ============================================================
-# A) HOME
+# HOME
 # ============================================================
 @app.route("/home")
 @login_required
@@ -723,11 +734,11 @@ def house_setup():
     if request.method == "POST":
         house_type = request.form.get("house_type", "condo")
 
-        bedroom  = to_int("bedroom", 1, 0, 10)
+        bedroom = to_int("bedroom", 1, 0, 10)
         bathroom = to_int("bathroom", 1, 0, 10)
-        living   = to_int("living", 1, 0, 5)
-        kitchen  = to_int("kitchen", 1, 0, 5)
-        work     = to_int("work", 0, 0, 5)
+        living = to_int("living", 1, 0, 5)
+        kitchen = to_int("kitchen", 1, 0, 5)
+        work = to_int("work", 0, 0, 5)
 
         state["house_layout"] = {
             "enabled": True,
@@ -752,7 +763,7 @@ def house_setup():
 
 
 # =========================
-# ROOMS SETUP (แสดงห้องที่สร้าง)  ✅ ต้องมีแค่อันเดียว
+# ROOMS SETUP (แสดงห้องที่สร้าง)  *** ต้องมีแค่อันเดียว ***
 # =========================
 @app.route("/rooms-setup", methods=["GET"])
 @login_required
@@ -760,24 +771,19 @@ def rooms_setup():
     user = current_user()
     st = get_or_create_user_state(user["id"])
     rooms = (st.get("state") or {}).get("rooms") or {}
-
-    return render_template(
-        "rooms_setup.html",
-        user=user,
-        st=st,
-        rooms=rooms,
-        app_name=APP_NAME
-    )
+    return render_template("rooms_setup.html", user=user, st=st, rooms=rooms, app_name=APP_NAME)
 
 
 # =========================
-# ROOM DETAIL (ตั้งค่าอุปกรณ์ในห้อง) ✅ เหลืออันเดียว (GET/POST)
+# ROOM DETAIL (ตั้งค่าอุปกรณ์ในห้อง)  *** ต้องมีแค่อันเดียว ***
 # =========================
 def _catalog_by_key():
     return {a["key"]: a for a in APPLIANCES_CATALOG}
 
+
 def _to_bool(v):
     return str(v).lower() in ("1", "true", "on", "yes")
+
 
 def _to_int_form(name, default=0, min_v=None, max_v=None):
     try:
@@ -790,6 +796,7 @@ def _to_int_form(name, default=0, min_v=None, max_v=None):
         v = min(max_v, v)
     return v
 
+
 def _to_float_form(name, default=0.0, min_v=None, max_v=None):
     try:
         v = float(request.form.get(name, default) or default)
@@ -800,6 +807,7 @@ def _to_float_form(name, default=0.0, min_v=None, max_v=None):
     if max_v is not None:
         v = min(max_v, v)
     return v
+
 
 @app.route("/room/<rid>", methods=["GET", "POST"])
 @login_required
@@ -816,18 +824,18 @@ def room_detail(rid):
     room = rooms[rid]
     catalog = _catalog_by_key()
 
-    # ensure appliance configs exist (merge defaults)
+    # ---- สำคัญ: merge defaults ให้ cfg พร้อมใช้งานใน template ----
     appl = room.get("appliances") or {}
-    for k in list(appl.keys()):
-        c = catalog.get(k)
+    for key in list(appl.keys()):
+        c = catalog.get(key)
         if not c:
             continue
-        if not isinstance(appl.get(k), dict) or len(appl.get(k)) == 0:
-            appl[k] = dict(c["defaults"])
+        if not isinstance(appl.get(key), dict) or len(appl.get(key)) == 0:
+            appl[key] = dict(c["defaults"])
         else:
             merged = dict(c["defaults"])
-            merged.update(appl[k])
-            appl[k] = merged
+            merged.update(appl[key])
+            appl[key] = merged
     room["appliances"] = appl
 
     if request.method == "POST":
@@ -868,20 +876,15 @@ def room_detail(rid):
         flash("บันทึกอุปกรณ์ในห้องแล้ว ✅", "success")
         return redirect(url_for("room_detail", rid=rid))
 
-    # ✅ กันพังถ้า room_detail.html ยังไม่มี
-    try:
-        return render_template(
-            "room_detail.html",
-            user=user,
-            st=st,
-            room_id=rid,
-            room=room,
-            catalog=catalog,
-            app_name=APP_NAME
-        )
-    except Exception:
-        flash("ยังไม่มีหน้า room_detail.html (ให้สร้างไฟล์นี้ก่อน) — ตอนนี้พากลับ Rooms Setup", "error")
-        return redirect(url_for("rooms_setup"))
+    return render_template(
+        "room_detail.html",
+        user=user,
+        st=st,
+        room_id=rid,
+        room=room,
+        catalog=catalog,
+        app_name=APP_NAME
+    )
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -935,12 +938,14 @@ def register():
     return render_template("register.html", app_name=APP_NAME)
 
 
+# ===== FIX 3: logout กลับหน้า index ชัวร์ ๆ =====
 @app.route("/logout")
 def logout():
     session.clear()
     return redirect(url_for("index"))
 
 
+# -------- API --------
 @app.route("/api/state", methods=["GET", "POST"])
 @login_required
 def api_state():
@@ -1002,6 +1007,7 @@ def api_simulate_day():
     return jsonify({"result": res, "points": points_new, "house_level": level_new, "day_counter": state["day_counter"]})
 
 
+# ปิดร้านค้าในโหมดใช้งานจริง
 @app.route("/api/shop", methods=["GET"])
 @login_required
 def api_shop():
@@ -1024,7 +1030,7 @@ def dashboard():
         SELECT day,kwh_total,cost_thb,kwh_on,kwh_off,kwh_solar_used,kwh_ev,created_at
         FROM energy_daily WHERE user_id=? ORDER BY id DESC LIMIT 30
     """, (user["id"],)).fetchall()
-    return render_template("dashboard.html", user=user, st=st, rows=rows, levels=HOUSE_LEVELS)
+    return render_template("dashboard.html", user=user, st=st, rows=rows, levels=HOUSE_LEVELS, app_name=APP_NAME)
 
 
 @app.route("/admin")
@@ -1053,7 +1059,8 @@ def admin():
         avg_kwh=avg_kwh,
         avg_cost=avg_cost,
         users=users,
-        settings=settings
+        settings=settings,
+        app_name=APP_NAME
     )
 
 
@@ -1082,9 +1089,12 @@ def admin_user(user_id):
         SELECT day,kwh_total,cost_thb,kwh_on,kwh_off,kwh_solar_used,kwh_ev,created_at
         FROM energy_daily WHERE user_id=? ORDER BY id DESC LIMIT 60
     """, (user_id,)).fetchall()
-    return render_template("admin_user.html", u=user, st=st, rows=rows, levels=HOUSE_LEVELS)
+    return render_template("admin_user.html", u=user, st=st, rows=rows, levels=HOUSE_LEVELS, app_name=APP_NAME)
 
 
+# ------------------------------
+# V3: Inventory / Missions / Pets / Leaderboard / Share / User Settings
+# ------------------------------
 def inv_get(user_id: int, item_key: str) -> int:
     db = get_db()
     row = db.execute("SELECT qty FROM inventory WHERE user_id=? AND item_key=?", (user_id, item_key)).fetchone()
@@ -1159,6 +1169,7 @@ def save_user_prefs(user_id: int, prefs: dict):
     db.commit()
 
 
+# ====== โหมดเกม: routes ด้านล่างจะ "ปิด" เมื่อ ENABLE_GAME = False ======
 def _game_disabled_redirect():
     flash("โหมดเกมถูกปิดชั่วคราว (โหมดใช้งานจริง)", "error")
     return redirect(url_for("home"))
