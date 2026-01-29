@@ -326,6 +326,7 @@ ROOM_TEMPLATES = {
     "kitchen": ["lights", "microwave"],
     "bathroom": ["water_heater", "lights"],
     "work":    ["lights", "computer"]
+    "parking": ["lights"]
 }
 
 
