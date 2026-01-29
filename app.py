@@ -741,6 +741,7 @@ def house_setup():
         living = to_int("living", 1, 0, 5)
         kitchen = to_int("kitchen", 1, 0, 5)
         work = to_int("work", 0, 0, 5)
+        parking = to_int("parking", 1, 0, 10)
 
         state["house_layout"] = {
             "enabled": True,
@@ -751,6 +752,8 @@ def house_setup():
                 "living": living,
                 "kitchen": kitchen,
                 "work": work
+                "parking": parking
+
             }
         }
 
