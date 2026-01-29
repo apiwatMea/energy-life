@@ -86,6 +86,13 @@
 
       <!-- APPLIANCES SUMMARY -->
       <h3>🔌 อุปกรณ์ไฟฟ้า (ภาพรวม)</h3>
+      <div class="mini mt2">
+  <div class="mini-title">📌 ตั้งค่าแบบรายห้อง</div>
+  <div class="muted">
+    ตอนนี้หน้านี้เป็น “ภาพรวมทั้งบ้าน”  
+    ถ้าต้องการตั้งค่าแยกห้อง (ห้องนอน/ห้องนั่งเล่น/ครัว) ให้กดปุ่มด้านล่าง
+  </div>
+</div>
       <ul class="list">
         {% for k,v in state.appliances.items() %}
           <li class="row between">
