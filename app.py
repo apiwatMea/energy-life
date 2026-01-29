@@ -372,7 +372,8 @@ def default_state():
                 "bathroom": 1,
                 "living": 1,
                 "kitchen": 1,
-                "work": 0
+                "work": 0,
+                "parking": 1
             }
         },
 
