@@ -29,49 +29,53 @@
       {% endif %}
     {% endwith %}
 
+    {% set layout = (st.state.house_layout if st and st.state and st.state.house_layout else {}) %}
+    {% set rooms = (layout.rooms if layout and layout.rooms else {}) %}
+    {% set house_type = (layout.house_type if layout and layout.house_type else 'condo') %}
+
     <form method="post" class="form">
       <div class="mini">
         <div class="mini-title">ประเภทบ้าน</div>
         <select name="house_type">
-          <option value="condo">คอนโด</option>
-          <option value="single_1">บ้าน 1 ชั้น</option>
-          <option value="single_2">บ้าน 2 ชั้น</option>
-          <option value="single_3">บ้าน 3 ชั้น</option>
+          <option value="condo" {{ 'selected' if house_type=='condo' else '' }}>คอนโด</option>
+          <option value="single_1" {{ 'selected' if house_type=='single_1' else '' }}>บ้าน 1 ชั้น</option>
+          <option value="single_2" {{ 'selected' if house_type=='single_2' else '' }}>บ้าน 2 ชั้น</option>
+          <option value="single_3" {{ 'selected' if house_type=='single_3' else '' }}>บ้าน 3 ชั้น</option>
         </select>
       </div>
 
       <div class="grid3 mt2">
         <div class="mini">
           <div class="mini-title">ห้องนอน</div>
-          <input name="bedroom" type="number" min="0" max="10" value="1">
+          <input name="bedroom" type="number" min="0" max="10" value="{{ rooms.bedroom if rooms and rooms.bedroom is not none else 1 }}">
         </div>
         <div class="mini">
           <div class="mini-title">ห้องน้ำ</div>
-          <input name="bathroom" type="number" min="0" max="10" value="1">
+          <input name="bathroom" type="number" min="0" max="10" value="{{ rooms.bathroom if rooms and rooms.bathroom is not none else 1 }}">
         </div>
         <div class="mini">
           <div class="mini-title">ห้องนั่งเล่น</div>
-          <input name="living" type="number" min="0" max="5" value="1">
+          <input name="living" type="number" min="0" max="5" value="{{ rooms.living if rooms and rooms.living is not none else 1 }}">
         </div>
       </div>
 
       <div class="grid3 mt2">
-  <div class="mini">
-    <div class="mini-title">ห้องครัว</div>
-    <input name="kitchen" type="number" min="0" max="5" value="1">
-  </div>
+        <div class="mini">
+          <div class="mini-title">ห้องครัว</div>
+          <input name="kitchen" type="number" min="0" max="5" value="{{ rooms.kitchen if rooms and rooms.kitchen is not none else 1 }}">
+        </div>
 
-  <div class="mini">
-    <div class="mini-title">ห้องทำงาน</div>
-    <input name="work" type="number" min="0" max="5" value="0">
-  </div>
+        <div class="mini">
+          <div class="mini-title">ห้องทำงาน</div>
+          <input name="work" type="number" min="0" max="5" value="{{ rooms.work if rooms and rooms.work is not none else 0 }}">
+        </div>
 
-  <div class="mini">
-    <div class="mini-title">ที่จอดรถ</div>
-    <input name="parking" type="number" min="0" max="10" value="1">
-  </div>
-</div>
-
+        <div class="mini">
+          <div class="mini-title">ที่จอดรถ</div>
+          <input name="parking" type="number" min="0" max="10" value="{{ rooms.parking if rooms and rooms.parking is not none else 1 }}">
+          <div class="muted small">รองรับรถ EV (ตั้งค่าชาร์จ EV ในหน้า Home ได้)</div>
+        </div>
+      </div>
 
       <div class="row gap mt">
         <button class="btn primary" type="submit">บันทึกและสร้างห้อง</button>
