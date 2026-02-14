@@ -312,7 +312,7 @@ def default_profile():
 
 
 # =========================
-# PHASE 2: บ้าน -> ห้อง -> อุปกรณ์ (Room Templates)
+# PHASE 2: บ้าน -> ห้อง -> อุปกรณ์
 # =========================
 ROOM_TEMPLATES = {
     "bedroom": ["ac", "lights"],
@@ -320,15 +320,27 @@ ROOM_TEMPLATES = {
     "kitchen": ["lights", "microwave"],
     "bathroom": ["water_heater", "lights"],
     "work":    ["lights", "computer"],
-    # ✅ เพิ่มที่จอดรถ (เผื่อรองรับ EV ในอนาคต)
-    "parking": ["lights"]
+    "parking": ["lights"],  # เพิ่มที่จอดรถ (พื้นฐานมีไฟ)
 }
 
 
 def build_rooms_from_layout(layout: dict):
+    """
+    layout ตัวอย่าง:
+    {
+      "enabled": True,
+      "house_type": "single_3",
+      "rooms": {"bedroom": 3, "bathroom": 2, "living": 1, "kitchen": 1, "work": 1, "parking": 1}
+    }
+    """
     rooms = {}
-    for room_type, count in (layout.get("rooms") or {}).items():
-        count = int(count or 0)
+    rooms_cfg = (layout.get("rooms") or {})
+    for room_type, count in rooms_cfg.items():
+        try:
+            count = int(count or 0)
+        except Exception:
+            count = 0
+
         for i in range(1, count + 1):
             rid = f"{room_type}_{i}"
             rooms[rid] = {
@@ -343,6 +355,7 @@ def default_state():
     appliances = {}
     for a in APPLIANCES_CATALOG:
         appliances[a["key"]] = dict(a["defaults"])
+
     return {
         "tariff_mode": "non_tou",
         "solar_kw": 0,
@@ -358,22 +371,19 @@ def default_state():
         },
         "appliances": appliances,
 
-        # ===== PHASE 2: บ้าน -> ห้อง -> อุปกรณ์ =====
         "house_layout": {
             "enabled": False,
-            "house_type": "condo",     # condo / single_1 / single_2 / single_3
+            "house_type": "condo",  # condo / single_1 / single_2 / single_3
             "rooms": {
                 "bedroom": 1,
                 "bathroom": 1,
                 "living": 1,
                 "kitchen": 1,
                 "work": 0,
-                # ✅ เพิ่มที่จอดรถ (default 1 ช่อง)
-                "parking": 1
+                "parking": 0,  # ✅ เพิ่ม parking
             }
         },
 
-        # ห้องที่ระบบจะ generate ให้ภายหลัง
         "rooms": {},
 
         "inventory": {"furniture": [], "avatar": []},
@@ -381,13 +391,38 @@ def default_state():
     }
 
 
+def _ensure_layout_defaults(state: dict):
+    """
+    กันพังกับ user เก่าที่เคยมี house_layout แต่ไม่มี parking
+    """
+    if "house_layout" not in state or not isinstance(state["house_layout"], dict):
+        state["house_layout"] = default_state()["house_layout"]
+
+    hl = state["house_layout"]
+    if "rooms" not in hl or not isinstance(hl["rooms"], dict):
+        hl["rooms"] = default_state()["house_layout"]["rooms"]
+
+    # เติม key ที่ขาด
+    for k, v in default_state()["house_layout"]["rooms"].items():
+        if k not in hl["rooms"]:
+            hl["rooms"][k] = v
+
+    if "house_type" not in hl:
+        hl["house_type"] = "condo"
+    if "enabled" not in hl:
+        hl["enabled"] = False
+
+
 def get_or_create_user_state(user_id):
     db = get_db()
     row = db.execute("SELECT * FROM user_state WHERE user_id=?", (user_id,)).fetchone()
     if row:
+        profile = json.loads(row["profile_json"])
+        state = json.loads(row["state_json"])
+        _ensure_layout_defaults(state)
         return {
-            "profile": json.loads(row["profile_json"]),
-            "state": json.loads(row["state_json"]),
+            "profile": profile,
+            "state": state,
             "points": row["points"],
             "house_level": row["house_level"]
         }
@@ -403,6 +438,7 @@ def get_or_create_user_state(user_id):
 
 
 def save_user_state(user_id, profile, state, points, house_level):
+    _ensure_layout_defaults(state)
     db = get_db()
     now = datetime.utcnow().isoformat()
     db.execute("""
@@ -721,6 +757,7 @@ def house_setup():
     user = current_user()
     st = get_or_create_user_state(user["id"])
     state = st["state"]
+    _ensure_layout_defaults(state)
 
     def to_int(name, default=0, min_v=0, max_v=10):
         try:
@@ -730,29 +767,25 @@ def house_setup():
         return max(min_v, min(max_v, v))
 
     if request.method == "POST":
-        # ✅ รองรับบ้าน 3 ชั้น
         house_type = request.form.get("house_type", "condo")
-        if house_type not in ("condo", "single_1", "single_2", "single_3"):
-            house_type = "condo"
 
         bedroom  = to_int("bedroom", 1, 0, 10)
         bathroom = to_int("bathroom", 1, 0, 10)
         living   = to_int("living", 1, 0, 5)
         kitchen  = to_int("kitchen", 1, 0, 5)
         work     = to_int("work", 0, 0, 5)
-        # ✅ ที่จอดรถ
-        parking  = to_int("parking", 1, 0, 10)
+        parking  = to_int("parking", 0, 0, 10)  # ✅ เพิ่ม parking
 
         state["house_layout"] = {
             "enabled": True,
-            "house_type": house_type,
+            "house_type": house_type,  # condo / single_1 / single_2 / single_3
             "rooms": {
                 "bedroom": bedroom,
                 "bathroom": bathroom,
                 "living": living,
                 "kitchen": kitchen,
                 "work": work,
-                "parking": parking
+                "parking": parking,
             }
         }
 
@@ -786,13 +819,15 @@ def rooms_setup():
 
 
 # =========================
-# ROOM DETAIL (ตั้งค่าอุปกรณ์ในห้อง) - GET/POST ตัวเดียว (กัน route ซ้ำ)
+# ROOM DETAIL (ตั้งค่าอุปกรณ์ในห้อง)
 # =========================
 def _catalog_by_key():
     return {a["key"]: a for a in APPLIANCES_CATALOG}
 
+
 def _to_bool(v):
     return str(v).lower() in ("1", "true", "on", "yes")
+
 
 def _to_int_form(name, default=0, min_v=None, max_v=None):
     try:
@@ -805,6 +840,7 @@ def _to_int_form(name, default=0, min_v=None, max_v=None):
         v = min(max_v, v)
     return v
 
+
 def _to_float_form(name, default=0.0, min_v=None, max_v=None):
     try:
         v = float(request.form.get(name, default) or default)
@@ -815,6 +851,7 @@ def _to_float_form(name, default=0.0, min_v=None, max_v=None):
     if max_v is not None:
         v = min(max_v, v)
     return v
+
 
 @app.route("/room/<rid>", methods=["GET", "POST"])
 @login_required
@@ -948,7 +985,6 @@ def register():
     return render_template("register.html", app_name=APP_NAME)
 
 
-# ===== FIX 3: logout กลับหน้า index ชัวร์ ๆ =====
 @app.route("/logout")
 def logout():
     session.clear()
@@ -1011,16 +1047,12 @@ def api_simulate_day():
     ))
     db.commit()
 
-    # โหมดใช้งานจริง: ไม่สะสมคะแนนอันดับรายสัปดาห์
-    # weekly_add_score(user["id"], delta_points)
-
     state["day_counter"] = int(state.get("day_counter", 1)) + 1
     save_user_state(user["id"], profile, state, points_new, level_new)
 
     return jsonify({"result": res, "points": points_new, "house_level": level_new, "day_counter": state["day_counter"]})
 
 
-# ปิดร้านค้าในโหมดใช้งานจริง
 @app.route("/api/shop", methods=["GET"])
 @login_required
 def api_shop():
@@ -1181,7 +1213,6 @@ def save_user_prefs(user_id: int, prefs: dict):
     db.commit()
 
 
-# ====== โหมดเกม: routes ด้านล่างจะ "ปิด" เมื่อ ENABLE_GAME = False ======
 def _game_disabled_redirect():
     flash("โหมดเกมถูกปิดชั่วคราว (โหมดใช้งานจริง)", "error")
     return redirect(url_for("home"))
