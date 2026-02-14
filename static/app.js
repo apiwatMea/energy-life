@@ -1,182 +1,230 @@
-async function api(url, method="GET", body=null){
-  const opt = {method, headers: {"Content-Type":"application/json"}};
-  if(body) opt.body = JSON.stringify(body);
-  const res = await fetch(url, opt);
-  const data = await res.json().catch(()=> ({}));
-  if(!res.ok) throw new Error(data.error || "Request failed");
-  return data;
+// static/app.js
+
+function $(id) {
+  return document.getElementById(id);
 }
 
-function q(sel, root=document){ return root.querySelector(sel); }
-function qa(sel, root=document){ return Array.from(root.querySelectorAll(sel)); }
-
-function setTextIfExists(id, text){
-  const el = document.getElementById(id);
-  if(el) el.textContent = text;
+function toNumber(v, fallback = 0) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
 }
 
-function collectState(){
-  const profile = {
-    display_name: "ผู้เล่น",
-    player_type: q("#player_type").value,
-    house_type: q("#house_type").value,
-    house_size: q("#house_size").value,
-    residents: parseInt(q("#residents").value || "3", 10),
-  };
-  const state = {
-    tariff_mode: q("#tariff_mode").value,
-    solar_mode: q("#solar_mode").value,
-    solar_kw: parseFloat(q("#solar_kw").value || "0"),
-    ev_enabled: q("#ev_enabled").checked,
-    appliances: {}
-  };
+function fmt(n, digits = 1) {
+  const x = toNumber(n, 0);
+  return x.toFixed(digits);
+}
 
-  qa(".appliance").forEach(card=>{
-    const key = card.dataset.key;
-    const enabled = q(".ap-enabled", card).checked;
-    const ap = {enabled};
+function escapeHtml(str) {
+  return String(str ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
 
-    if(key === "ac"){
-      ap.btu = parseFloat(q(".ac-btu", card).value);
-      ap.set_temp = parseFloat(q(".ac-temp", card).value || "26");
-      ap.hours = parseFloat(q(".ac-hours", card).value || "0");
-      ap.start_hour = parseInt(q(".ac-start", card).value || "0", 10);
-      ap.end_hour = parseInt(q(".ac-end", card).value || "0", 10);
-      ap.inverter = q(".ac-inverter", card).checked;
-    }else if(key === "lights"){
-      ap.mode = q(".li-mode", card).value;
-      ap.watts = parseFloat(q(".li-watts", card).value || "0");
-      ap.hours = parseFloat(q(".li-hours", card).value || "0");
-    }else if(key === "fridge"){
-      ap.kwh_per_day = parseFloat(q(".fr-kwh", card).value || "0");
-    }else{
-      const w = q(".ge-watts", card);
-      const h = q(".ge-hours", card);
-      if(w) ap.watts = parseFloat(w.value || "0");
-      if(h) ap.hours = parseFloat(h.value || "0");
-    }
-    state.appliances[key] = ap;
+async function apiGetState() {
+  const res = await fetch("/api/state", { credentials: "same-origin" });
+  if (!res.ok) throw new Error("โหลด state ไม่สำเร็จ");
+  return res.json();
+}
+
+async function apiSaveState(payload) {
+  const res = await fetch("/api/state", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
   });
-
-  state.ev = {
-    battery_kwh: parseFloat(q("#ev_batt").value || "60"),
-    charger_kw: parseFloat(q("#ev_charger").value || "7.4"),
-    soc_from: parseFloat(q("#ev_from").value || "30"),
-    soc_to: parseFloat(q("#ev_to").value || "80"),
-    charge_start_hour: parseInt(q("#ev_start").value || "22", 10)
-  };
-
-  return {profile, state};
+  if (!res.ok) throw new Error("บันทึกไม่สำเร็จ");
+  return res.json();
 }
 
-function renderResult(result){
-  // ===== อัปเดตสรุปย่อ (ถ้ามีในหน้า) =====
-  const kwhDay = Number(result.kwh_total || 0);
-  const costDay = Number(result.cost_thb || 0);
-  const costMonth = costDay * 30;
+async function apiSimulateDay() {
+  const res = await fetch("/api/simulate_day", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  if (!res.ok) throw new Error("จำลองไม่สำเร็จ");
+  return res.json();
+}
 
-  setTextIfExists("statKwhDay", kwhDay.toFixed(2));
-  setTextIfExists("statCostDay", costDay.toFixed(2));
-  setTextIfExists("statCostMonth", costMonth.toFixed(2));
+function renderResultBox(result) {
+  const box = $("resultBox");
+  if (!box) return;
 
-  // header badges (ถ้ามี)
-  if(result.solar_kw !== undefined){
-    // ไม่บังคับ
-  }
+  const warnings = (result.warnings || []).map(w => `<li>${escapeHtml(w)}</li>`).join("");
+  const insights = (result.insights || []).map(i => `<li>${escapeHtml(i)}</li>`).join("");
 
-  const box = q("#resultBox");
-  const warn = (result.warnings||[]).map(w=>`<div class="flash error">⚠️ ${w}</div>`).join("");
-  const ins = (result.insights||[]).map(i=>`<div class="flash success">✅ ${i}</div>`).join("");
+  const touLine = (result.kwh_on !== undefined && result.kwh_off !== undefined)
+    ? `<div class="muted small mt1">TOU Split: On-Peak <b>${fmt(result.kwh_on, 2)}</b> kWh • Off-Peak <b>${fmt(result.kwh_off, 2)}</b> kWh</div>`
+    : "";
+
+  const solarLine = (result.kwh_solar_used !== undefined)
+    ? `<div class="muted small mt1">Solar ใช้ทดแทน: <b>${fmt(result.kwh_solar_used, 2)}</b> kWh</div>`
+    : "";
+
+  const evLine = (result.kwh_ev !== undefined && toNumber(result.kwh_ev, 0) > 0)
+    ? `<div class="muted small mt1">EV รวม: <b>${fmt(result.kwh_ev, 2)}</b> kWh</div>`
+    : "";
 
   box.innerHTML = `
-    <div class="grid3">
-      <div class="mini">
-        <div class="mini-title">⚡ kWh รวม</div>
-        <div class="big">${kwhDay.toFixed(2)}</div>
-      </div>
-      <div class="mini">
-        <div class="mini-title">💰 ค่าไฟ (฿)</div>
-        <div class="big">${costDay.toFixed(2)}</div>
-      </div>
-      <div class="mini">
-        <div class="mini-title">⭐ คะแนนที่ได้</div>
-        <div class="big">+${Number(result.points_earned||0)}</div>
+    <div class="row between">
+      <div>
+        <div class="mini-title">สรุปการจำลอง</div>
+        <div class="muted small">รวมทุกห้อง (ถ้ามีการตั้งค่าแยกห้อง ระบบจะรวมให้อัตโนมัติ)</div>
       </div>
     </div>
 
-    <div class="grid3 mt2">
-      <div class="mini">
-        <div class="mini-title">☀️ Solar ใช้เอง (kWh)</div>
-        <div class="big">${Number(result.kwh_solar_used||0).toFixed(2)}</div>
-      </div>
-      <div class="mini">
-        <div class="mini-title">🚗 EV (kWh)</div>
-        <div class="big">${Number(result.kwh_ev||0).toFixed(2)}</div>
-      </div>
-      <div class="mini">
-        <div class="mini-title">TOU On/Off (kWh)</div>
-        <div class="muted">${Number(result.kwh_on||0).toFixed(2)} / ${Number(result.kwh_off||0).toFixed(2)}</div>
-      </div>
+    <div class="mt1">
+      <div class="big">⚡ ${fmt(result.kwh_total, 2)} kWh</div>
+      <div class="big">💰 ${fmt(result.cost_thb, 0)} บาท</div>
+      ${touLine}
+      ${solarLine}
+      ${evLine}
     </div>
 
-    <div class="divider"></div>
-
-    <h3>แยกตามอุปกรณ์</h3>
-    <div class="panel">
-      ${Object.entries(result.breakdown||{}).map(([k,v])=>`
-        <div class="row between">
-          <div class="muted">${k}</div>
-          <div><b>${Number(v||0).toFixed(2)}</b> kWh</div>
-        </div>`).join("")}
-    </div>
-
-    <div class="divider"></div>
-    ${warn}
-    ${ins}
+    ${insights ? `<div class="mt2"><div class="mini-title">✅ อินไซต์</div><ul class="tips">${insights}</ul></div>` : ""}
+    ${warnings ? `<div class="mt2"><div class="mini-title">⚠️ คำเตือน</div><ul class="tips">${warnings}</ul></div>` : ""}
   `;
 }
 
-async function save(){
-  const payload = collectState();
-  await api("/api/state", "POST", payload);
+function renderRoomsSummary(result) {
+  const el = $("roomsSummary");
+  if (!el) return;
 
-  // อัปเดต header status ในหน้า (ถ้ามี)
-  setTextIfExists("statTariff", payload.state.tariff_mode);
-  setTextIfExists("statSolar", String(payload.state.solar_kw));
-  setTextIfExists("statEv", payload.state.ev_enabled ? "ON" : "OFF");
+  const roomsEnabled = !!result.rooms_enabled;
+  const byRoom = result.kwh_by_room || {};
+  const evByRoom = result.kwh_ev_by_room || {};
+
+  const keys = Object.keys(byRoom);
+
+  if (!roomsEnabled || keys.length === 0) {
+    el.innerHTML = `
+      <div class="muted">
+        ยังไม่มีข้อมูลรายห้อง — ไปที่ “ตั้งค่าโครงสร้างบ้าน” เพื่อสร้างห้อง แล้วเข้าหน้า “ตั้งค่าอุปกรณ์แยกตามห้อง”
+        จากนั้นกด “จำลองไปอีก 1 วัน” อีกครั้ง
+      </div>
+    `;
+    return;
+  }
+
+  // sort ใช้ไฟมาก -> น้อย
+  keys.sort((a, b) => toNumber(byRoom[b], 0) - toNumber(byRoom[a], 0));
+
+  const total = keys.reduce((s, k) => s + toNumber(byRoom[k], 0), 0);
+
+  const rows = keys.map((rid) => {
+    const kwh = toNumber(byRoom[rid], 0);
+    const ev = toNumber(evByRoom[rid], 0);
+    const pct = total > 0 ? Math.round((kwh / total) * 100) : 0;
+
+    const evBadge = ev > 0
+      ? `<span class="badge" style="margin-left:6px;">EV ${fmt(ev, 1)} kWh</span>`
+      : "";
+
+    return `
+      <div style="padding:10px 0;border-bottom:1px dashed rgba(255,255,255,.08);">
+        <div class="row between">
+          <div>
+            <div class="mini-title">${escapeHtml(rid)}</div>
+            <div class="muted small">${pct}% ของทั้งบ้าน ${evBadge}</div>
+          </div>
+          <div class="big" style="font-size:18px;">${fmt(kwh, 2)} kWh</div>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  el.innerHTML = `
+    <div class="muted small">รวมทั้งบ้าน (รายห้อง): <b>${fmt(total, 2)}</b> kWh</div>
+    <div class="mt1">${rows}</div>
+  `;
 }
 
-async function simulate(){
-  await save();
-  const out = await api("/api/simulate_day", "POST", {});
-  // ของเดิมยังใช้ได้
-  const p = document.getElementById("points");
-  if(p) p.textContent = out.points;
-  setTextIfExists("dayCounter", out.day_counter);
-  renderResult(out.result);
+function updateTopStats(result, dayCounter) {
+  if ($("statKwhDay")) $("statKwhDay").textContent = `${fmt(result.kwh_total, 2)}`;
+  if ($("statCostDay")) $("statCostDay").textContent = `${fmt(result.cost_thb, 0)}`;
+  if ($("statCostMonth")) $("statCostMonth").textContent = `${fmt(toNumber(result.cost_thb, 0) * 30, 0)}`;
+  if ($("dayCounter") && dayCounter !== undefined) $("dayCounter").textContent = String(dayCounter);
 }
 
-function toggleEvPanel(){
-  const ev = document.getElementById("ev_enabled");
-  const panel = document.getElementById("ev_panel");
-  if(!ev || !panel) return;
-  const on = ev.checked;
-  panel.style.opacity = on ? "1" : ".35";
-  panel.style.pointerEvents = on ? "auto" : "none";
+function collectPayloadFromUI(currentState) {
+  const profile = currentState.profile || {};
+  const state = currentState.state || {};
+
+  // profile
+  profile.player_type = $("player_type") ? $("player_type").value : profile.player_type;
+  profile.house_type = $("house_type") ? $("house_type").value : profile.house_type;
+  profile.house_size = $("house_size") ? $("house_size").value : profile.house_size;
+  profile.residents = $("residents") ? toNumber($("residents").value, profile.residents) : profile.residents;
+
+  // state
+  state.tariff_mode = $("tariff_mode") ? $("tariff_mode").value : state.tariff_mode;
+  state.solar_mode = $("solar_mode") ? $("solar_mode").value : state.solar_mode;
+  state.solar_kw = $("solar_kw") ? toNumber($("solar_kw").value, state.solar_kw) : state.solar_kw;
+
+  // legacy EV
+  state.ev_enabled = $("ev_enabled") ? $("ev_enabled").checked : state.ev_enabled;
+  state.ev = state.ev || {};
+  if ($("ev_batt")) state.ev.battery_kwh = toNumber($("ev_batt").value, state.ev.battery_kwh);
+  if ($("ev_charger")) state.ev.charger_kw = toNumber($("ev_charger").value, state.ev.charger_kw);
+  if ($("ev_start")) state.ev.charge_start_hour = toNumber($("ev_start").value, state.ev.charge_start_hour);
+  if ($("ev_from")) state.ev.soc_from = toNumber($("ev_from").value, state.ev.soc_from);
+  if ($("ev_to")) state.ev.soc_to = toNumber($("ev_to").value, state.ev.soc_to);
+
+  return { profile, state };
 }
 
-document.addEventListener("DOMContentLoaded", ()=>{
-  toggleEvPanel();
-  const ev = document.getElementById("ev_enabled");
-  if(ev) ev.addEventListener("change", toggleEvPanel);
+async function main() {
+  let current = await apiGetState();
 
-  const saveBtn = document.getElementById("saveBtn");
-  if(saveBtn) saveBtn.addEventListener("click", async ()=>{
-    try{ await save(); alert("บันทึกเรียบร้อย"); }catch(e){ alert(e.message); }
-  });
+  const saveBtn = $("saveBtn");
+  const simBtn = $("simBtn");
 
-  const simBtn = document.getElementById("simBtn");
-  if(simBtn) simBtn.addEventListener("click", async ()=>{
-    try{ await simulate(); }catch(e){ alert(e.message); }
-  });
+  if (saveBtn) {
+    saveBtn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      try {
+        const payload = collectPayloadFromUI(current);
+        await apiSaveState({ profile: payload.profile, state: payload.state });
+        current = await apiGetState();
+
+        // update header quick stats
+        if ($("statTariff")) $("statTariff").textContent = current.state.tariff_mode;
+        if ($("statSolar")) $("statSolar").textContent = String(current.state.solar_kw);
+        if ($("statEv")) $("statEv").textContent = current.state.ev_enabled ? "ON" : "OFF";
+
+        alert("บันทึกแล้ว ✅");
+      } catch (err) {
+        console.error(err);
+        alert("บันทึกไม่สำเร็จ ❌");
+      }
+    });
+  }
+
+  if (simBtn) {
+    simBtn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      try {
+        const data = await apiSimulateDay();
+        const result = data.result;
+
+        updateTopStats(result, data.day_counter);
+        renderResultBox(result);
+        renderRoomsSummary(result);
+      } catch (err) {
+        console.error(err);
+        alert("จำลองไม่สำเร็จ ❌");
+      }
+    });
+  }
+
+  // initial: ถ้ามีการจำลองแล้วในหน้าอื่น อยากให้ยังโชว์เป็น default ก็ปล่อยไว้
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  main().catch((e) => console.error(e));
 });
