@@ -17,8 +17,9 @@ DATABASE = os.environ.get("ENERGY_LIFE_DB", "energy_life.db")
 SECRET_KEY = os.environ.get("ENERGY_LIFE_SECRET", None) or os.urandom(24).hex()
 
 # ===== โหมดใช้งานจริง: ปิดระบบเกมก่อน =====
-ENABLE_GAME = False
+ENABLE_GAME = False  # <- ถ้าจะเปิดเกมทีหลัง เปลี่ยนเป็น True
 
+# init v4 database on app start
 init_v4_db()
 
 
@@ -35,15 +36,24 @@ DEFAULT_USER_PREFS = {
 }
 
 
+def current_week_id(dt=None):
+    dt = dt or datetime.utcnow()
+    iso = dt.isocalendar()
+    return f"{iso.year}-W{iso.week:02d}"
+
+
 DEFAULT_TARIFF = {
-    "non_tou_rate": 4.20,
+    "non_tou_rate": 4.20,  # THB/kWh placeholder
     "tou_on_rate": 5.50,
     "tou_off_rate": 3.30,
-    "on_peak_start": 9,
-    "on_peak_end": 22
+    "on_peak_start": 9,   # 09:00
+    "on_peak_end": 22     # 22:00 end exclusive
 }
 
 
+# =========================
+# Appliances Catalog
+# =========================
 APPLIANCES_CATALOG = [
     {"key": "ac", "name": "แอร์", "icon": "❄️", "type": "ac",
      "defaults": {"enabled": True, "btu": 12000, "set_temp": 26, "hours": 6, "inverter": True, "start_hour": 20, "end_hour": 2}},
@@ -72,12 +82,30 @@ APPLIANCES_CATALOG = [
     {"key": "standby", "name": "ไฟสแตนด์บาย", "icon": "🔌", "type": "standby",
      "defaults": {"enabled": True, "watts": 20, "hours": 24}},
 
-    # ✅ NEW: EV Charger (รายห้อง/ที่จอดรถ)
-    # หมายเหตุ: ถ้าเปิด EV แบบเดิม (state.ev_enabled=True) ระบบจะ "ไม่" นับ ev_charger ซ้ำ
+    # ✅ NEW: EV Charger (ใช้ในห้อง Parking เพื่อคิด EV แบบรายห้อง)
+    # หมายเหตุ: "efficiency" คือสัดส่วนพลังงานที่ไปถึงแบต (ประมาณ 0.5–1.0)
     {"key": "ev_charger", "name": "EV Charger", "icon": "🔋", "type": "ev_charger",
-     "defaults": {"enabled": True, "charger_kw": 7.4, "hours": 2.0, "eff": 0.90, "start_hour": 22, "end_hour": 2}},
+     "defaults": {"enabled": True, "charger_kw": 7.4, "hours": 2.0, "efficiency": 0.9, "start_hour": 22, "end_hour": 2}},
 ]
 
+# ยังเก็บไว้เผื่อเปิดเกมทีหลัง แต่โหมดใช้งานจริงจะปิด API shop/buy
+SHOP_ITEMS = [
+    {"key": "sofa", "name": "โซฟา Eco", "icon": "🛋️", "cost": 120, "category": "furniture"},
+    {"key": "plant", "name": "ต้นไม้เขียว", "icon": "🌿", "cost": 80, "category": "furniture"},
+    {"key": "painting", "name": "รูปพลังงาน", "icon": "🖼️", "cost": 60, "category": "furniture"},
+    {"key": "bed", "name": "เตียงนุ่ม", "icon": "🛏️", "cost": 150, "category": "furniture"},
+    {"key": "eco_hat", "name": "หมวกโซลาร์", "icon": "🧢", "cost": 90, "category": "avatar"},
+    {"key": "eco_shirt", "name": "เสื้อ ECO HERO", "icon": "👕", "cost": 110, "category": "avatar"},
+    {"key": "door_stopper", "name": "ที่ปิดช่องประตู", "icon": "🚪🧊", "cost": 120, "category": "energy"},
+    {"key": "uv_film", "name": "ฟิล์มกัน UV", "icon": "🪟☀️", "cost": 250, "category": "energy"},
+    {"key": "thermal_curtain", "name": "ม่านกันความร้อน", "icon": "🧵🪟", "cost": 200, "category": "energy"},
+    {"key": "led_pack", "name": "ชุดหลอด LED", "icon": "💡", "cost": 100, "category": "energy"},
+    {"key": "smart_strip", "name": "ปลั๊กพ่วงอัจฉริยะ", "icon": "🔌✨", "cost": 220, "category": "energy"},
+    {"key": "ac_clean", "name": "ล้างแอร์/ล้างฟิลเตอร์", "icon": "🧼❄️", "cost": 150, "category": "energy"},
+    {"key": "pet_food_basic", "name": "อาหารสัตว์ (Basic)", "icon": "🥣", "cost": 60, "category": "pet"},
+    {"key": "pet_food_premium", "name": "อาหารสัตว์ (Premium)", "icon": "🍖", "cost": 140, "category": "pet"},
+    {"key": "name_change_ticket", "name": "ตั๋วเปลี่ยนชื่อ", "icon": "🎟️", "cost": 180, "category": "profile"},
+]
 
 HOUSE_LEVELS = [
     {"level": 1, "name": "บ้านเริ่มต้น", "need_points": 0, "badge": "🏚️"},
@@ -139,12 +167,45 @@ def init_db():
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS purchases (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        item_key TEXT NOT NULL,
+        cost_points INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS inventory (
         user_id INTEGER NOT NULL,
         item_key TEXT NOT NULL,
         qty INTEGER NOT NULL DEFAULT 0,
         updated_at TEXT NOT NULL,
         PRIMARY KEY (user_id, item_key),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS pets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        pet_type TEXT NOT NULL,
+        stage TEXT NOT NULL DEFAULT 'egg',
+        hunger INTEGER NOT NULL DEFAULT 50,
+        happiness INTEGER NOT NULL DEFAULT 50,
+        level INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS mission_progress (
+        user_id INTEGER NOT NULL,
+        mission_id TEXT NOT NULL,
+        week_id TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active',
+        progress INTEGER NOT NULL DEFAULT 0,
+        target INTEGER NOT NULL DEFAULT 1,
+        claimed_at TEXT,
+        PRIMARY KEY (user_id, mission_id, week_id),
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
 
@@ -179,6 +240,7 @@ def init_db():
     );
     """)
 
+    # seed tariff settings
     for k, v in DEFAULT_TARIFF.items():
         db.execute("INSERT OR IGNORE INTO settings(key,value) VALUES(?,?)", (k, str(v)))
     db.commit()
@@ -192,8 +254,10 @@ def ensure_user_schema():
         db.execute("ALTER TABLE users ADD COLUMN display_name TEXT")
     if "share_token" not in cols:
         db.execute("ALTER TABLE users ADD COLUMN share_token TEXT")
+
     db.execute("UPDATE users SET display_name = COALESCE(display_name, username)")
     db.execute("UPDATE users SET share_token = COALESCE(share_token, '')")
+
     rows = db.execute("SELECT id FROM users WHERE share_token = '' OR share_token IS NULL").fetchall()
     for r in rows:
         db.execute("UPDATE users SET share_token=? WHERE id=?", (make_token(24), r["id"]))
@@ -272,28 +336,21 @@ def default_profile():
     return {"display_name": "ผู้เล่น", "player_type": "family", "house_type": "condo", "house_size": "medium", "residents": 3}
 
 
-# =========================
-# PHASE 2: บ้าน -> ห้อง -> อุปกรณ์
-# =========================
+# ✅ เพิ่ม parking + ใส่ fridge ในครัว + ใส่ ev_charger ในที่จอดรถ
 ROOM_TEMPLATES = {
     "bedroom": ["ac", "lights"],
     "living":  ["ac", "lights", "tv"],
-    "kitchen": ["lights", "microwave"],
-    "bathroom": ["water_heater", "lights"],
+    "kitchen": ["lights", "microwave", "fridge"],   # ✅ เพิ่มตู้เย็น
+    "bathroom":["water_heater", "lights"],
     "work":    ["lights", "computer"],
-    # ✅ parking มีไฟ + EV Charger (ถ้าอยากให้มีเฉพาะบางบ้าน ปรับได้ทีหลัง)
-    "parking": ["lights", "ev_charger"],
+    "parking": ["lights", "ev_charger"],            # ✅ เพิ่ม EV Charger ในที่จอดรถ
 }
 
 
 def build_rooms_from_layout(layout: dict):
     rooms = {}
-    rooms_cfg = (layout.get("rooms") or {})
-    for room_type, count in rooms_cfg.items():
-        try:
-            count = int(count or 0)
-        except Exception:
-            count = 0
+    for room_type, count in (layout.get("rooms") or {}).items():
+        count = int(count or 0)
         for i in range(1, count + 1):
             rid = f"{room_type}_{i}"
             rooms[rid] = {
@@ -304,17 +361,20 @@ def build_rooms_from_layout(layout: dict):
     return rooms
 
 
+def _catalog_by_key():
+    return {a["key"]: a for a in APPLIANCES_CATALOG}
+
+
 def default_state():
     appliances = {}
     for a in APPLIANCES_CATALOG:
         appliances[a["key"]] = dict(a["defaults"])
-
     return {
         "tariff_mode": "non_tou",
         "solar_kw": 0,
         "solar_mode": "manual",
 
-        # EV โหมดเดิม (global)
+        # ✅ เก่า (global EV) ยังเก็บไว้ เพื่อไม่ให้ของเดิมพัง
         "ev_enabled": False,
         "ev": {
             "battery_kwh": 60,
@@ -327,48 +387,38 @@ def default_state():
 
         "appliances": appliances,
 
+        # ===== PHASE 2: บ้าน -> ห้อง -> อุปกรณ์ =====
         "house_layout": {
             "enabled": False,
-            "house_type": "condo",  # condo / single_1 / single_2 / single_3
+            "house_type": "condo",     # condo / single_1 / single_2 / single_3
             "rooms": {
                 "bedroom": 1,
                 "bathroom": 1,
                 "living": 1,
                 "kitchen": 1,
                 "work": 0,
-                "parking": 0,
+                "parking": 1            # ✅ เพิ่ม parking
             }
         },
 
+        # ห้องที่ระบบจะ generate ให้ภายหลัง
         "rooms": {},
+
         "inventory": {"furniture": [], "avatar": []},
         "day_counter": 1
     }
-
-
-def _ensure_layout_defaults(state: dict):
-    if "house_layout" not in state or not isinstance(state["house_layout"], dict):
-        state["house_layout"] = default_state()["house_layout"]
-    hl = state["house_layout"]
-    if "rooms" not in hl or not isinstance(hl["rooms"], dict):
-        hl["rooms"] = default_state()["house_layout"]["rooms"]
-    for k, v in default_state()["house_layout"]["rooms"].items():
-        if k not in hl["rooms"]:
-            hl["rooms"][k] = v
-    if "house_type" not in hl:
-        hl["house_type"] = "condo"
-    if "enabled" not in hl:
-        hl["enabled"] = False
 
 
 def get_or_create_user_state(user_id):
     db = get_db()
     row = db.execute("SELECT * FROM user_state WHERE user_id=?", (user_id,)).fetchone()
     if row:
-        profile = json.loads(row["profile_json"])
-        state = json.loads(row["state_json"])
-        _ensure_layout_defaults(state)
-        return {"profile": profile, "state": state, "points": row["points"], "house_level": row["house_level"]}
+        return {
+            "profile": json.loads(row["profile_json"]),
+            "state": json.loads(row["state_json"]),
+            "points": row["points"],
+            "house_level": row["house_level"]
+        }
     prof = default_profile()
     st = default_state()
     now = datetime.utcnow().isoformat()
@@ -381,7 +431,6 @@ def get_or_create_user_state(user_id):
 
 
 def save_user_state(user_id, profile, state, points, house_level):
-    _ensure_layout_defaults(state)
     db = get_db()
     now = datetime.utcnow().isoformat()
     db.execute("""
@@ -445,122 +494,178 @@ def split_kwh_by_tou(kwh, start_h, end_h, on_start, on_end):
     return kwh_on, kwh_off
 
 
-def _compute_room_ev_charger_kwh(state: dict):
+def _room_appliance_kwh(key: str, cfg: dict, catalog: dict):
     """
-    ✅ EV Charger รายห้อง:
-    - จะนับเมื่อ state.ev_enabled == False เท่านั้น (กันซ้ำกับ EV global)
-    - รวมทุกห้องที่เป็น parking และมี ev_charger เปิดใช้งาน
+    คืนค่า (kwh, kwh_ev_equiv, notes_dict)
+    - kwh: ไฟจากกริดที่ใช้ (หน่วย kWh)
+    - kwh_ev_equiv: เฉพาะกรณี ev_charger จะนับเป็น kwh_ev ด้วย
     """
-    rooms = state.get("rooms") or {}
-    total_kwh = 0.0
-    any_enabled = False
+    c = catalog.get(key)
+    if not c:
+        return 0.0, 0.0, {}
 
-    for rid, room in rooms.items():
-        if (room.get("type") != "parking"):
-            continue
-        appl = (room.get("appliances") or {})
-        cfg = appl.get("ev_charger")
-        if not isinstance(cfg, dict):
-            continue
-        if not cfg.get("enabled", False):
-            continue
+    if not cfg.get("enabled", False):
+        return 0.0, 0.0, {}
 
-        charger_kw = float(cfg.get("charger_kw", 7.4) or 0)
-        hours = float(cfg.get("hours", 2.0) or 0)
-        eff = float(cfg.get("eff", 0.9) or 0.9)
+    t = c.get("type")
+
+    if t == "ac":
+        btu = float(cfg.get("btu", 12000))
+        set_temp = float(cfg.get("set_temp", 26))
+        hours = float(cfg.get("hours", 6))
+        inverter = bool(cfg.get("inverter", True))
+        return float(calc_ac_kwh(btu, set_temp, hours, inverter=inverter)), 0.0, {}
+
+    if t == "lights":
+        watts = float(cfg.get("watts", 30))
+        hours = float(cfg.get("hours", 5))
+        return float(calc_generic_kwh(watts, hours)), 0.0, {}
+
+    if t == "fridge":
+        return float(cfg.get("kwh_per_day", 1.2)), 0.0, {}
+
+    if t == "ev_charger":
+        charger_kw = float(cfg.get("charger_kw", 7.4))
+        hours = float(cfg.get("hours", 2.0))
+        eff = float(cfg.get("efficiency", 0.9))
         eff = max(0.5, min(1.0, eff))
-        kwh = max(0.0, charger_kw * hours * eff)
+        grid_kwh = max(0.0, charger_kw * max(0.0, hours))
+        # พลังงานที่เข้าแบตโดยประมาณ
+        delivered = grid_kwh * eff
+        return grid_kwh, grid_kwh, {"delivered_kwh": delivered, "efficiency": eff}
 
-        total_kwh += kwh
-        any_enabled = True
-
-    return total_kwh, any_enabled
+    # generic/standby
+    watts = float(cfg.get("watts", 0))
+    hours = float(cfg.get("hours", 0))
+    return float(calc_generic_kwh(watts, hours)), 0.0, {}
 
 
 def compute_daily_energy(profile, state):
+    """
+    ✅ โหมดใหม่: ถ้ามี state["rooms"] และมีข้อมูล จะคำนวณ "รวมทั้งบ้านแบบรายห้อง"
+    ✅ โหมดเดิม: ถ้าไม่มี rooms จะคำนวณจาก state["appliances"] แบบครบบ้านเหมือนเดิม
+    """
     tariff_mode = state.get("tariff_mode", "non_tou")
     solar_kw = float(state.get("solar_kw", 0) or 0)
-    appliances = state.get("appliances", {})
 
     size_factor = {"small": 0.9, "medium": 1.0, "large": 1.15}.get(profile.get("house_size", "medium"), 1.0)
     residents = max(1, int(profile.get("residents", 3)))
     resident_factor = 0.85 + min(0.6, (residents - 1) * 0.08)
 
-    kwh_breakdown = {}
     warnings = []
     insights = []
     points = 0
 
-    # --- ครบบ้าน (ภาพรวม) ---
-    for key, cfg in appliances.items():
-        if not cfg.get("enabled", False):
-            kwh_breakdown[key] = 0.0
-            continue
+    catalog = _catalog_by_key()
 
-        if key == "ac":
-            btu = float(cfg.get("btu", 12000))
-            set_temp = float(cfg.get("set_temp", 26))
-            hours = float(cfg.get("hours", 6))
-            inverter = bool(cfg.get("inverter", True))
-            kwh = calc_ac_kwh(btu, set_temp, hours, inverter=inverter)
-            kwh_breakdown[key] = kwh
-            if set_temp < 25:
-                warnings.append(f"แอร์ตั้ง {int(set_temp)}°C ใช้ไฟสูง แนะนำ 26°C เพื่อประหยัด")
+    # ---------------------------
+    # 1) คำนวณ KWh breakdown
+    # ---------------------------
+    kwh_by_room = {}
+    kwh_ev_room = {}
+    breakdown = {}  # legacy breakdown (รวมตาม key)
+    ev_delivered_total = 0.0
+
+    rooms = (state.get("rooms") or {})
+    use_rooms = isinstance(rooms, dict) and len(rooms) > 0
+
+    if use_rooms:
+        for rid, r in rooms.items():
+            room_kwh = 0.0
+            room_ev = 0.0
+            aps = (r.get("appliances") or {})
+            for key, cfg in aps.items():
+                # merge defaults เพื่อกัน field หาย
+                base = dict(catalog.get(key, {}).get("defaults") or {})
+                if isinstance(cfg, dict):
+                    base.update(cfg)
+                cfg = base
+
+                kwh, kwh_ev, meta = _room_appliance_kwh(key, cfg, catalog)
+                room_kwh += kwh
+                room_ev += kwh_ev
+
+                breakdown[key] = breakdown.get(key, 0.0) + float(kwh)
+                if key == "ac" and cfg.get("enabled") and float(cfg.get("set_temp", 26)) >= 26:
+                    points += 10
+                if key == "lights" and cfg.get("enabled") and (cfg.get("mode") == "LED"):
+                    points += 5
+
+                if key == "ev_charger" and meta:
+                    ev_delivered_total += float(meta.get("delivered_kwh", 0.0))
+
+            kwh_by_room[rid] = room_kwh
+            kwh_ev_room[rid] = room_ev
+
+        kwh_total_raw = sum(kwh_by_room.values())
+        kwh_ev = sum(kwh_ev_room.values())
+    else:
+        # legacy: จาก appliances รวมบ้าน
+        appliances = state.get("appliances", {})
+        for key, cfg in appliances.items():
+            if not cfg.get("enabled", False):
+                breakdown[key] = 0.0
+                continue
+            c = catalog.get(key)
+            if not c:
+                breakdown[key] = 0.0
+                continue
+            t = c.get("type")
+            if t == "ac":
+                btu = float(cfg.get("btu", 12000))
+                set_temp = float(cfg.get("set_temp", 26))
+                hours = float(cfg.get("hours", 6))
+                inverter = bool(cfg.get("inverter", True))
+                kwh = calc_ac_kwh(btu, set_temp, hours, inverter=inverter)
+                breakdown[key] = kwh
+                if set_temp < 25:
+                    warnings.append(f"แอร์ตั้ง {int(set_temp)}°C ใช้ไฟสูง แนะนำ 26°C เพื่อประหยัด")
+                else:
+                    points += 10
+                    insights.append("ตั้งแอร์ 26°C ขึ้นไป = ประหยัดดี ได้คะแนนโบนัส")
+            elif t == "fridge":
+                breakdown[key] = float(cfg.get("kwh_per_day", 1.2))
+            elif t == "lights":
+                watts = float(cfg.get("watts", 30))
+                hours = float(cfg.get("hours", 5))
+                breakdown[key] = calc_generic_kwh(watts, hours)
+                if cfg.get("mode") == "LED":
+                    points += 5
+                else:
+                    warnings.append("ไฟเป็นหลอดธรรมดา แนะนำเปลี่ยนเป็น LED")
             else:
-                points += 10
-                insights.append("ตั้งแอร์ 26°C ขึ้นไป = ประหยัดดี ได้คะแนนโบนัส")
+                watts = float(cfg.get("watts", 0))
+                hours = float(cfg.get("hours", 0))
+                breakdown[key] = calc_generic_kwh(watts, hours)
 
-        elif key == "fridge":
-            kwh = float(cfg.get("kwh_per_day", 1.2))
-            kwh_breakdown[key] = kwh
+        kwh_total_raw = sum(breakdown.values())
+        kwh_ev = 0.0  # legacy EV จะไปคิดด้านล่างตาม state["ev_enabled"]
 
-        elif key == "lights":
-            watts = float(cfg.get("watts", 30))
-            hours = float(cfg.get("hours", 5))
-            kwh = calc_generic_kwh(watts, hours)
-            kwh_breakdown[key] = kwh
-            if cfg.get("mode") == "LED":
-                points += 5
-            else:
-                warnings.append("ไฟเป็นหลอดธรรมดา แนะนำเปลี่ยนเป็น LED")
+    # factors
+    kwh_total = kwh_total_raw * size_factor * resident_factor
 
-        else:
-            watts = float(cfg.get("watts", 0))
-            hours = float(cfg.get("hours", 0))
-            kwh_breakdown[key] = calc_generic_kwh(watts, hours)
-
-    kwh_total = sum(kwh_breakdown.values()) * size_factor * resident_factor
-
-    # --- EV (2 โหมด) ---
-    kwh_ev = 0.0
-
-    # (A) EV global เดิม
+    # ---------------------------
+    # 2) EV legacy (ยังรองรับของเดิม)
+    # ---------------------------
+    kwh_ev_legacy = 0.0
     if state.get("ev_enabled"):
         ev = state.get("ev", {})
         batt = float(ev.get("battery_kwh", 60))
         soc_from = max(0, min(100, float(ev.get("soc_from", 30))))
         soc_to = max(0, min(100, float(ev.get("soc_to", 80))))
         if soc_to > soc_from:
-            kwh_ev = batt * ((soc_to - soc_from) / 100.0)
-            kwh_total += kwh_ev
-            insights.append(f"EV (โหมดเดิม): ชาร์จ {int(soc_from)}% → {int(soc_to)}% ใช้ไฟ ~{kwh_ev:.1f} kWh/ครั้ง")
+            kwh_ev_legacy = batt * ((soc_to - soc_from) / 100.0)
+            kwh_total += kwh_ev_legacy
+            insights.append(f"EV ชาร์จจาก {int(soc_from)}% → {int(soc_to)}% ใช้ไฟ ~{kwh_ev_legacy:.1f} kWh/ครั้ง")
         else:
-            warnings.append("ตั้งค่า EV ไม่ถูกต้อง (เปอร์เซ็นต์ปลายทางต้องมากกว่าต้นทาง)")
+            warnings.append("ตั้งค่า EV ชาร์จไม่ถูกต้อง (เปอร์เซ็นต์ปลายทางต้องมากกว่าต้นทาง)")
 
-        # ถ้ามี ev_charger รายห้องเปิดด้วย เตือนว่าไม่นับซ้ำ
-        room_ev_kwh, room_ev_any = _compute_room_ev_charger_kwh(state)
-        if room_ev_any:
-            warnings.append("พบ EV Charger ในห้องจอดรถ แต่คุณเปิด EV (โหมดเดิม) อยู่แล้ว ระบบจะไม่นับซ้ำ")
+    # รวม EV ทั้งสองระบบ (รายห้อง + legacy)
+    kwh_ev_total = float(kwh_ev) + float(kwh_ev_legacy)
 
-    # (B) EV Charger รายห้อง (ที่จอดรถ) — นับเมื่อไม่ได้เปิด EV global
-    else:
-        room_ev_kwh, room_ev_any = _compute_room_ev_charger_kwh(state)
-        if room_ev_any and room_ev_kwh > 0:
-            kwh_ev = room_ev_kwh
-            kwh_total += kwh_ev
-            insights.append(f"EV Charger (ที่จอดรถ): รวม ~{kwh_ev:.1f} kWh/วัน จากการตั้งค่าห้องจอดรถ")
-
-    # --- Solar heuristic ---
+    # ---------------------------
+    # 3) Solar
+    # ---------------------------
     daytime_frac = 0.45
     if profile.get("player_type") == "adult":
         daytime_frac = 0.42
@@ -575,67 +680,111 @@ def compute_daily_energy(profile, state):
     kwh_solar_used = min(kwh_total, kwh_solar_prod * 0.75)
     kwh_net = max(0.0, kwh_total - kwh_solar_used)
 
-    # --- TOU split ---
+    # ---------------------------
+    # 4) TOU split
+    # ---------------------------
     kwh_on = 0.0
     kwh_off = 0.0
     on_start = int(load_setting("on_peak_start", 9))
     on_end = int(load_setting("on_peak_end", 22))
 
     if tariff_mode == "tou":
-        # AC
-        ac_cfg = appliances.get("ac", {})
-        if ac_cfg.get("enabled", False):
-            ac_kwh = kwh_breakdown.get("ac", 0.0) * size_factor * resident_factor
-            ac_on, ac_off = split_kwh_by_tou(ac_kwh, ac_cfg.get("start_hour", 20), ac_cfg.get("end_hour", 2), on_start, on_end)
-            kwh_on += ac_on
-            kwh_off += ac_off
+        # ถ้ามี rooms: split แบบ "ยึดเวลาของอุปกรณ์ที่มีเวลา" ส่วนที่เหลือกระจายด้วย heuristic
+        if use_rooms:
+            on_set = set(window_hours(on_start, on_end))
 
-        # EV: ถ้ามาจาก EV global ใช้เวลาจาก state.ev, ถ้ามาจาก room ใช้ start/end ของห้อง (เฉลี่ยเป็นช่วงเดียว)
-        if kwh_ev > 0:
-            if state.get("ev_enabled"):
+            def _split_by_cfg(kwh_val, cfg, default_start=18, default_end=23):
+                sh = cfg.get("start_hour", default_start)
+                eh = cfg.get("end_hour", default_end)
+                return split_kwh_by_tou(kwh_val, sh, eh, on_start, on_end)
+
+            # 4.1 อุปกรณ์ที่มีเวลา: ac + ev_charger
+            for rid, r in rooms.items():
+                aps = (r.get("appliances") or {})
+                for key, cfg in aps.items():
+                    base = dict(catalog.get(key, {}).get("defaults") or {})
+                    if isinstance(cfg, dict):
+                        base.update(cfg)
+                    cfg = base
+                    if not cfg.get("enabled", False):
+                        continue
+
+                    kwh_val, _, _ = _room_appliance_kwh(key, cfg, catalog)
+                    kwh_val = float(kwh_val) * size_factor * resident_factor
+
+                    if key == "ac":
+                        a_on, a_off = split_kwh_by_tou(kwh_val, cfg.get("start_hour", 20), cfg.get("end_hour", 2), on_start, on_end)
+                        kwh_on += a_on
+                        kwh_off += a_off
+
+                        stt = float(cfg.get("set_temp", 26))
+                        if stt < 25:
+                            warnings.append(f"{rid}: แอร์ตั้ง {int(stt)}°C ใช้ไฟสูง แนะนำ 26°C")
+                    elif key == "ev_charger":
+                        # ถ้าเริ่มชาร์จใน On-peak: แนะนำย้ายไป off-peak (ไม่แก้ state แต่คิดตามเวลาที่ตั้งไว้จริง)
+                        start = normalize_hour(cfg.get("start_hour", 22))
+                        end = normalize_hour(cfg.get("end_hour", 2))
+                        ev_on, ev_off = split_kwh_by_tou(kwh_val, start, end, on_start, on_end)
+                        kwh_on += ev_on
+                        kwh_off += ev_off
+
+                        if start in on_set:
+                            warnings.append(f"{rid}: ชาร์จ EV ช่วง On-Peak ค่าไฟแพง แนะนำเริ่มหลัง {on_end}:00")
+                        else:
+                            points += 15
+                            insights.append(f"{rid}: ชาร์จ EV ช่วง Off-Peak = ประหยัดดี ได้คะแนนโบนัส")
+                    else:
+                        # อุปกรณ์อื่น: ยังไม่รู้เวลา -> ลงกลุ่ม later
+                        pass
+
+            # 4.2 ส่วนที่เหลือ (kwh_net - (kwh_on+kwh_off)) ใช้ heuristic
+            other_kwh = (kwh_net - (kwh_on + kwh_off))
+            if other_kwh < 0:
+                other_kwh = 0.0
+            house_type = profile.get("house_type", "condo")
+            base_on = 0.65 if house_type == "condo" else 0.58
+            kwh_on += other_kwh * base_on
+            kwh_off += other_kwh * (1.0 - base_on)
+        else:
+            # legacy split แบบเดิม
+            appliances = state.get("appliances", {})
+            ac_cfg = appliances.get("ac", {})
+            if ac_cfg.get("enabled", False):
+                ac_kwh = breakdown.get("ac", 0.0) * size_factor * resident_factor
+                ac_on, ac_off = split_kwh_by_tou(ac_kwh, ac_cfg.get("start_hour", 20), ac_cfg.get("end_hour", 2), on_start, on_end)
+                kwh_on += ac_on
+                kwh_off += ac_off
+
+            if state.get("ev_enabled") and kwh_ev_legacy > 0:
                 ev = state.get("ev", {})
                 charger_kw = float(ev.get("charger_kw", 7.4))
-                needed_hours = max(0.0, kwh_ev / max(0.1, charger_kw))
+                needed_hours = max(0.0, kwh_ev_legacy / max(0.1, charger_kw))
                 start = normalize_hour(ev.get("charge_start_hour", 22))
                 end = normalize_hour((start + int(math.ceil(needed_hours))) % 24) if needed_hours > 0 else start
-                ev_on, ev_off = split_kwh_by_tou(kwh_ev, start, end, on_start, on_end)
-            else:
-                # room charger: ใช้ start/end จาก parking_1 เป็นหลัก (ถ้ามีหลายที่จอด ให้เฉลี่ยแบบง่าย)
-                start = 22
-                end = 2
-                rooms = state.get("rooms") or {}
-                for rid, room in rooms.items():
-                    if room.get("type") == "parking":
-                        cfg = (room.get("appliances") or {}).get("ev_charger") or {}
-                        if cfg.get("enabled"):
-                            start = cfg.get("start_hour", 22)
-                            end = cfg.get("end_hour", 2)
-                            break
-                ev_on, ev_off = split_kwh_by_tou(kwh_ev, start, end, on_start, on_end)
+                ev_on, ev_off = split_kwh_by_tou(kwh_ev_legacy, start, end, on_start, on_end)
+                kwh_on += ev_on
+                kwh_off += ev_off
 
-            kwh_on += ev_on
-            kwh_off += ev_off
+                if start in set(window_hours(on_start, on_end)):
+                    warnings.append("คุณเริ่มชาร์จ EV ช่วง On-Peak ค่าไฟแพง แนะนำเริ่มหลัง Off-Peak")
+                else:
+                    points += 15
+                    insights.append("ชาร์จ EV ช่วง Off-Peak = ประหยัดดี ได้คะแนนโบนัส")
 
-            if normalize_hour(start) in set(window_hours(on_start, on_end)):
-                warnings.append("EV อยู่ช่วง On-Peak ค่าไฟแพง แนะนำเริ่มหลัง Off-Peak")
-            else:
-                points += 15
-                insights.append("ชาร์จ EV ช่วง Off-Peak = ประหยัดดี ได้คะแนนโบนัส")
-
-        # others
-        other_kwh = (kwh_net - (kwh_on + kwh_off))
-        if other_kwh < 0:
-            other_kwh = 0.0
-        house_type = profile.get("house_type", "condo")
-        base_on = 0.65 if house_type == "condo" else 0.58
-        kwh_on += other_kwh * base_on
-        kwh_off += other_kwh * (1.0 - base_on)
-
+            other_kwh = (kwh_net - (kwh_on + kwh_off))
+            if other_kwh < 0:
+                other_kwh = 0.0
+            house_type = profile.get("house_type", "condo")
+            base_on = 0.65 if house_type == "condo" else 0.58
+            kwh_on += other_kwh * base_on
+            kwh_off += other_kwh * (1.0 - base_on)
     else:
         kwh_off = kwh_net
         kwh_on = 0.0
 
-    # --- Cost ---
+    # ---------------------------
+    # 5) Cost
+    # ---------------------------
     if tariff_mode == "tou":
         on_rate = float(load_setting("tou_on_rate", 5.5))
         off_rate = float(load_setting("tou_off_rate", 3.3))
@@ -644,27 +793,45 @@ def compute_daily_energy(profile, state):
         rate = float(load_setting("non_tou_rate", 4.2))
         cost_thb = kwh_off * rate
 
+    # baseline points
     baseline = 14.0 * size_factor * resident_factor
     if kwh_net < baseline:
         points += int((baseline - kwh_net) * 2)
         insights.append("ใช้ไฟต่ำกว่าเกณฑ์พื้นฐานวันนี้ ได้คะแนนเพิ่ม")
 
-    if state.get("solar_mode") == "advisor":
+    solar_mode = state.get("solar_mode", "manual")
+    if solar_mode == "advisor":
         insights.append(f"Solar Advisor: แนะนำติดตั้ง ~{solar_reco_kw} kW (ปรับได้ตามพฤติกรรม)")
+        solar_kw = solar_reco_kw
+    if state.get("solar_mode", "manual") == "manual" and solar_kw > 0:
+        if solar_reco_kw > 0 and solar_kw >= solar_reco_kw + 4:
+            warnings.append("Solar อาจใหญ่เกินความจำเป็นสำหรับการใช้ไฟกลางวัน (ลองลดขนาดเพื่อคุ้มทุน)")
+        if solar_kw > 0 and solar_reco_kw >= solar_kw + 4:
+            warnings.append("Solar อาจเล็กไป หากต้องการลดบิลมากขึ้น ลองเพิ่มขนาดตามคำแนะนำ")
 
+    # เพิ่ม insight เรื่อง EV efficiency (ถ้ามี ev_charger)
+    if ev_delivered_total > 0:
+        insights.append(f"EV Charger: พลังงานเข้าแบตประมาณ ~{ev_delivered_total:.1f} kWh (ขึ้นกับประสิทธิภาพ)")
+
+    # ส่งข้อมูลแยกรายห้องเพิ่ม (JS เดิมจะไม่พัง เพราะเป็น field ใหม่)
     return {
-        "kwh_total": round(kwh_total, 3),
-        "kwh_net": round(kwh_net, 3),
-        "kwh_on": round(kwh_on, 3),
-        "kwh_off": round(kwh_off, 3),
-        "kwh_solar_used": round(kwh_solar_used, 3),
-        "kwh_ev": round(kwh_ev, 3),
-        "cost_thb": round(cost_thb, 2),
-        "breakdown": {k: round(v, 3) for k, v in kwh_breakdown.items()},
-        "warnings": warnings[:5],
-        "insights": insights[:5],
+        "kwh_total": round(float(kwh_total), 3),
+        "kwh_net": round(float(kwh_net), 3),
+        "kwh_on": round(float(kwh_on), 3),
+        "kwh_off": round(float(kwh_off), 3),
+        "kwh_solar_used": round(float(kwh_solar_used), 3),
+        "kwh_ev": round(float(kwh_ev_total), 3),
+        "cost_thb": round(float(cost_thb), 2),
+        "breakdown": {k: round(float(v), 3) for k, v in breakdown.items()},
+        "warnings": warnings[:6],
+        "insights": insights[:6],
         "points_earned": int(points),
-        "solar_kw": solar_kw
+        "solar_kw": solar_kw,
+
+        # ✅ NEW fields
+        "rooms_enabled": bool(use_rooms),
+        "kwh_by_room": {k: round(float(v) * size_factor * resident_factor, 3) for k, v in kwh_by_room.items()},
+        "kwh_ev_by_room": {k: round(float(v) * size_factor * resident_factor, 3) for k, v in kwh_ev_room.items()},
     }
 
 
@@ -711,11 +878,13 @@ def close_db(exception):
         db.close()
 
 
+# ===== FIX 1: landing alias (กัน template เก่าเรียก url_for('landing')) =====
 @app.route("/landing")
 def landing():
     return redirect(url_for("index"))
 
 
+# ===== FIX 2: หน้าแรกส่ง app_name เข้า template =====
 @app.route("/")
 def index():
     increment_visitor()
@@ -723,6 +892,9 @@ def index():
     return render_template("index.html", visitor_count=visitor_count, app_name=APP_NAME)
 
 
+# ============================================================
+# A) HOME
+# ============================================================
 @app.route("/home")
 @login_required
 def home():
@@ -741,13 +913,15 @@ def home():
     )
 
 
+# =========================
+# HOUSE SETUP (กำหนดโครงสร้างบ้าน)
+# =========================
 @app.route("/house-setup", methods=["GET", "POST"])
 @login_required
 def house_setup():
     user = current_user()
     st = get_or_create_user_state(user["id"])
     state = st["state"]
-    _ensure_layout_defaults(state)
 
     def to_int(name, default=0, min_v=0, max_v=10):
         try:
@@ -764,21 +938,22 @@ def house_setup():
         living   = to_int("living", 1, 0, 5)
         kitchen  = to_int("kitchen", 1, 0, 5)
         work     = to_int("work", 0, 0, 5)
-        parking  = to_int("parking", 0, 0, 10)
+        parking  = to_int("parking", 1, 0, 10)  # ✅ NEW
 
         state["house_layout"] = {
             "enabled": True,
-            "house_type": house_type,
+            "house_type": house_type,  # condo/single_1/single_2/single_3
             "rooms": {
                 "bedroom": bedroom,
                 "bathroom": bathroom,
                 "living": living,
                 "kitchen": kitchen,
                 "work": work,
-                "parking": parking
+                "parking": parking  # ✅ NEW
             }
         }
 
+        # generate rooms from layout
         state["rooms"] = build_rooms_from_layout(state["house_layout"])
 
         save_user_state(user["id"], st["profile"], state, st["points"], st["house_level"])
@@ -788,29 +963,21 @@ def house_setup():
     return render_template("house_setup.html", user=user, st=st, app_name=APP_NAME)
 
 
+# =========================
+# ROOMS SETUP (แสดงห้องที่สร้าง)
+# =========================
 @app.route("/rooms-setup", methods=["GET"])
 @login_required
 def rooms_setup():
     user = current_user()
     st = get_or_create_user_state(user["id"])
     rooms = (st.get("state") or {}).get("rooms") or {}
-
-    return render_template(
-        "rooms_setup.html",
-        user=user,
-        st=st,
-        rooms=rooms,
-        app_name=APP_NAME
-    )
+    return render_template("rooms_setup.html", user=user, st=st, rooms=rooms, app_name=APP_NAME)
 
 
 # =========================
 # ROOM DETAIL (ตั้งค่าอุปกรณ์ในห้อง)
 # =========================
-def _catalog_by_key():
-    return {a["key"]: a for a in APPLIANCES_CATALOG}
-
-
 def _to_bool(v):
     return str(v).lower() in ("1", "true", "on", "yes")
 
@@ -854,6 +1021,7 @@ def room_detail(rid):
     room = rooms[rid]
     catalog = _catalog_by_key()
 
+    # ensure appliance configs exist (merge defaults)
     appl = room.get("appliances") or {}
     for k in list(appl.keys()):
         c = catalog.get(k)
@@ -875,8 +1043,8 @@ def room_detail(rid):
 
             cfg = dict(appl.get(key) or c["defaults"])
             cfg["enabled"] = _to_bool(request.form.get(f"{key}__enabled", "off"))
-
             t = c.get("type")
+
             if t == "ac":
                 cfg["btu"] = _to_int_form(f"{key}__btu", cfg.get("btu", 12000), 6000, 60000)
                 cfg["set_temp"] = _to_int_form(f"{key}__set_temp", cfg.get("set_temp", 26), 16, 30)
@@ -896,7 +1064,7 @@ def room_detail(rid):
             elif t == "ev_charger":
                 cfg["charger_kw"] = _to_float_form(f"{key}__charger_kw", cfg.get("charger_kw", 7.4), 0, 50)
                 cfg["hours"] = _to_float_form(f"{key}__hours", cfg.get("hours", 2.0), 0, 24)
-                cfg["eff"] = _to_float_form(f"{key}__eff", cfg.get("eff", 0.90), 0.5, 1.0)
+                cfg["efficiency"] = _to_float_form(f"{key}__efficiency", cfg.get("efficiency", 0.9), 0.5, 1.0)
                 cfg["start_hour"] = _to_int_form(f"{key}__start_hour", cfg.get("start_hour", 22), 0, 23)
                 cfg["end_hour"] = _to_int_form(f"{key}__end_hour", cfg.get("end_hour", 2), 0, 23)
 
@@ -974,12 +1142,14 @@ def register():
     return render_template("register.html", app_name=APP_NAME)
 
 
+# ===== FIX 3: logout กลับหน้า index ชัวร์ ๆ =====
 @app.route("/logout")
 def logout():
     session.clear()
     return redirect(url_for("index"))
 
 
+# -------- API --------
 @app.route("/api/state", methods=["GET", "POST"])
 @login_required
 def api_state():
@@ -1031,7 +1201,8 @@ def api_simulate_day():
     """, (
         user["id"], day, float(res["kwh_total"]), float(res["cost_thb"]),
         float(res["kwh_on"]), float(res["kwh_off"]), float(res["kwh_solar_used"]), float(res["kwh_ev"]),
-        None, datetime.utcnow().isoformat()
+        json.dumps({"rooms_enabled": res.get("rooms_enabled", False), "kwh_by_room": res.get("kwh_by_room", {})}),
+        datetime.utcnow().isoformat()
     ))
     db.commit()
 
@@ -1041,6 +1212,7 @@ def api_simulate_day():
     return jsonify({"result": res, "points": points_new, "house_level": level_new, "day_counter": state["day_counter"]})
 
 
+# ปิดร้านค้าในโหมดใช้งานจริง
 @app.route("/api/shop", methods=["GET"])
 @login_required
 def api_shop():
@@ -1060,7 +1232,7 @@ def dashboard():
     st = get_or_create_user_state(user["id"])
     db = get_db()
     rows = db.execute("""
-        SELECT day,kwh_total,cost_thb,kwh_on,kwh_off,kwh_solar_used,kwh_ev,created_at
+        SELECT day,kwh_total,cost_thb,kwh_on,kwh_off,kwh_solar_used,kwh_ev,notes_json,created_at
         FROM energy_daily WHERE user_id=? ORDER BY id DESC LIMIT 30
     """, (user["id"],)).fetchall()
     return render_template("dashboard.html", user=user, st=st, rows=rows, levels=HOUSE_LEVELS)
@@ -1107,11 +1279,142 @@ def admin_settings():
     return redirect(url_for("admin"))
 
 
+@app.route("/admin/user/<int:user_id>")
+@login_required
+@role_required("admin", "officer")
+def admin_user(user_id):
+    db = get_db()
+    user = db.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
+    if not user:
+        flash("ไม่พบผู้ใช้", "error")
+        return redirect(url_for("admin"))
+    st = get_or_create_user_state(user_id)
+    rows = db.execute("""
+        SELECT day,kwh_total,cost_thb,kwh_on,kwh_off,kwh_solar_used,kwh_ev,notes_json,created_at
+        FROM energy_daily WHERE user_id=? ORDER BY id DESC LIMIT 60
+    """, (user_id,)).fetchall()
+    return render_template("admin_user.html", u=user, st=st, rows=rows, levels=HOUSE_LEVELS)
+
+
+# ------------------------------
+# V3: Inventory / Missions / Pets / Leaderboard / Share / User Settings
+# ------------------------------
+def inv_get(user_id: int, item_key: str) -> int:
+    db = get_db()
+    row = db.execute("SELECT qty FROM inventory WHERE user_id=? AND item_key=?", (user_id, item_key)).fetchone()
+    return int(row["qty"]) if row else 0
+
+
+def inv_add(user_id: int, item_key: str, qty: int):
+    db = get_db()
+    now = datetime.utcnow().isoformat()
+    db.execute("""
+        INSERT INTO inventory(user_id,item_key,qty,updated_at) VALUES(?,?,?,?)
+        ON CONFLICT(user_id,item_key) DO UPDATE SET
+            qty = qty + excluded.qty,
+            updated_at = excluded.updated_at
+    """, (user_id, item_key, int(qty), now))
+    db.commit()
+
+
+def inv_take(user_id: int, item_key: str, qty: int) -> bool:
+    have = inv_get(user_id, item_key)
+    if have < qty:
+        return False
+    db = get_db()
+    now = datetime.utcnow().isoformat()
+    db.execute("UPDATE inventory SET qty = qty - ?, updated_at=? WHERE user_id=? AND item_key=?",
+               (int(qty), now, user_id, item_key))
+    db.commit()
+    return True
+
+
+def weekly_add_score(user_id: int, delta: int):
+    db = get_db()
+    week_id = current_week_id()
+    now = datetime.utcnow().isoformat()
+    db.execute("""
+        INSERT INTO weekly_scores(user_id,week_id,score,updated_at) VALUES(?,?,?,?)
+        ON CONFLICT(user_id,week_id) DO UPDATE SET
+            score = score + excluded.score,
+            updated_at = excluded.updated_at
+    """, (user_id, week_id, int(delta), now))
+    db.commit()
+
+
+def get_user_display(user_id: int):
+    db = get_db()
+    row = db.execute("SELECT display_name, share_token FROM users WHERE id=?", (user_id,)).fetchone()
+    return (row["display_name"] or "ผู้เล่น", row["share_token"])
+
+
+def get_user_prefs(user_id: int):
+    db = get_db()
+    row = db.execute("SELECT prefs_json FROM user_prefs WHERE user_id=?", (user_id,)).fetchone()
+    if not row:
+        return ensure_user_prefs(user_id)
+    try:
+        prefs = json.loads(row["prefs_json"] or "{}")
+    except Exception:
+        prefs = {}
+    merged = json.loads(json.dumps(DEFAULT_USER_PREFS))
+    for k, v in prefs.items():
+        if isinstance(v, dict) and k in merged:
+            merged[k].update(v)
+        else:
+            merged[k] = v
+    return merged
+
+
+def save_user_prefs(user_id: int, prefs: dict):
+    db = get_db()
+    db.execute("INSERT OR REPLACE INTO user_prefs(user_id,prefs_json,updated_at) VALUES(?,?,?)",
+               (user_id, json.dumps(prefs), datetime.utcnow().isoformat()))
+    db.commit()
+
+
+# ====== โหมดเกม: routes ด้านล่างจะ "ปิด" เมื่อ ENABLE_GAME = False ======
+def _game_disabled_redirect():
+    flash("โหมดเกมถูกปิดชั่วคราว (โหมดใช้งานจริง)", "error")
+    return redirect(url_for("home"))
+
+
+@app.route("/missions", methods=["GET", "POST"])
+@login_required
+def missions():
+    if not ENABLE_GAME:
+        return _game_disabled_redirect()
+    return _game_disabled_redirect()
+
+
+@app.route("/pets", methods=["GET", "POST"])
+@login_required
+def pets():
+    if not ENABLE_GAME:
+        return _game_disabled_redirect()
+    return _game_disabled_redirect()
+
+
+@app.route("/leaderboard")
+@login_required
+def leaderboard():
+    if not ENABLE_GAME:
+        return _game_disabled_redirect()
+    return _game_disabled_redirect()
+
+
+@app.route("/share/<token>")
+def share_public(token):
+    if not ENABLE_GAME:
+        return render_template("share_public.html", app_name=APP_NAME, not_found=True)
+    return render_template("share_public.html", app_name=APP_NAME, not_found=True)
+
+
 @app.route("/settings", methods=["GET", "POST"])
 @login_required
 def user_settings():
     user = current_user()
-    prefs = ensure_user_prefs(user["id"])
+    prefs = get_user_prefs(user["id"])
     if request.method == "POST":
         for key in ["bgm", "sfx", "pet", "tts"]:
             prefs["audio"][key] = True if request.form.get(f"audio_{key}") == "on" else False
@@ -1122,13 +1425,38 @@ def user_settings():
         prefs["view"]["mode"] = request.form.get("view_mode") or prefs["view"]["mode"]
         prefs["language"]["ui"] = request.form.get("lang_ui") or prefs["language"]["ui"]
         prefs["language"]["voice"] = request.form.get("lang_voice") or prefs["language"]["voice"]
-        db = get_db()
-        db.execute("INSERT OR REPLACE INTO user_prefs(user_id,prefs_json,updated_at) VALUES(?,?,?)",
-                   (user["id"], json.dumps(prefs), datetime.utcnow().isoformat()))
-        db.commit()
+        save_user_prefs(user["id"], prefs)
         flash("บันทึกการตั้งค่าแล้ว", "success")
         return redirect(url_for("user_settings"))
     return render_template("settings_user.html", app_name=APP_NAME, prefs=prefs)
+
+
+@app.route("/profile", methods=["GET", "POST"])
+@login_required
+def profile():
+    user = current_user()
+    name, token = get_user_display(user["id"])
+    if request.method == "POST":
+        new_name = (request.form.get("display_name") or "").strip()
+        if len(new_name) < 3 or len(new_name) > 16:
+            flash("ชื่อที่แสดงต้องยาว 3–16 ตัวอักษร", "error")
+            return redirect(url_for("profile"))
+
+        if inv_get(user["id"], "name_change_ticket") <= 0:
+            flash("ต้องมีไอเท็ม ‘ตั๋วเปลี่ยนชื่อ’ ก่อนถึงจะเปลี่ยนชื่อได้", "error")
+            return redirect(url_for("profile"))
+        if not inv_take(user["id"], "name_change_ticket", 1):
+            flash("ตั๋วเปลี่ยนชื่อไม่พอ", "error")
+            return redirect(url_for("profile"))
+
+        db = get_db()
+        db.execute("UPDATE users SET display_name=? WHERE id=?", (new_name, user["id"]))
+        db.commit()
+        flash("เปลี่ยนชื่อสำเร็จ", "success")
+        return redirect(url_for("profile"))
+
+    return render_template("profile.html", app_name=APP_NAME, name=name, token=token,
+                           ticket=inv_get(user["id"], "name_change_ticket"))
 
 
 if __name__ == "__main__":
