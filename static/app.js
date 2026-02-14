@@ -91,19 +91,92 @@ function renderResultBox(result) {
   `;
 }
 
+/**
+ * ✅ รองรับ 2 schema:
+ * A) result.rooms_enabled + kwh_by_room + kwh_month_by_room + ...
+ * B) result.rooms_breakdown (จาก app.py compute_daily_energy)
+ */
 function renderRoomsSummary(result) {
   const el = $("roomsSummary");
   if (!el) return;
 
+  // -------------------------------
+  // Schema B: rooms_breakdown
+  // -------------------------------
+  const rb = result.rooms_breakdown && typeof result.rooms_breakdown === "object"
+    ? result.rooms_breakdown
+    : null;
+
+  if (rb && Object.keys(rb).length > 0) {
+    // byRoomDay: ใช้ kwh_total ต่อห้อง
+    const byRoom = {};
+    const byRoomMonth = {}; // ถ้า backend ยังไม่ส่งรายเดือน -> default *30 (ยกเว้น EV ถ้ามีคีย์รายเดือนเฉพาะ)
+    const evByRoom = {};
+    const evByRoomMonth = {};
+
+    const keys = Object.keys(rb);
+
+    keys.forEach((rid) => {
+      const roomObj = rb[rid] || {};
+      const kwhDay = toNumber(roomObj.kwh_total, 0);
+
+      // breakdown per appliance (ถ้ามี)
+      const breakdown = roomObj.breakdown || {};
+      const evDay = toNumber(breakdown.ev_charger, 0);
+
+      byRoom[rid] = kwhDay;
+      evByRoom[rid] = evDay;
+
+      // รายเดือน: ถ้า backend ส่งมาอยู่แล้วค่อยใช้ (รองรับหลายชื่อคีย์ เผื่ออนาคต)
+      // - kwh_month_total / kwh_total_month / month_kwh_total ฯลฯ
+      const kwhMonthFromBackend =
+        toNumber(roomObj.kwh_month_total, NaN) ||
+        toNumber(roomObj.kwh_total_month, NaN) ||
+        toNumber(roomObj.month_kwh_total, NaN);
+
+      byRoomMonth[rid] = Number.isFinite(kwhMonthFromBackend) ? kwhMonthFromBackend : (kwhDay * 30);
+
+      const evMonthFromBackend =
+        toNumber(roomObj.kwh_ev_month, NaN) ||
+        toNumber(roomObj.ev_kwh_month, NaN) ||
+        toNumber(roomObj.kwh_month_ev, NaN);
+
+      evByRoomMonth[rid] = Number.isFinite(evMonthFromBackend) ? evMonthFromBackend : (evDay * 30);
+    });
+
+    // render เหมือนเดิม
+    return renderRoomsSummaryFromMaps(el, byRoom, byRoomMonth, evByRoom, evByRoomMonth, true);
+  }
+
+  // -------------------------------
+  // Schema A: fields แบบเดิม
+  // -------------------------------
   const roomsEnabled = !!result.rooms_enabled;
   const byRoom = result.kwh_by_room || {};
   const byRoomMonth = result.kwh_month_by_room || {};
   const evByRoom = result.kwh_ev_by_room || {};
   const evByRoomMonth = result.kwh_ev_month_by_room || {};
 
-  const keys = Object.keys(byRoom);
+  const keysA = Object.keys(byRoom || {});
+  if (!roomsEnabled || keysA.length === 0) {
+    el.innerHTML = `
+      <div class="muted">
+        ยังไม่มีข้อมูลรายห้อง — ไปที่ “ตั้งค่าโครงสร้างบ้าน” เพื่อสร้างห้อง แล้วเข้าหน้า “ตั้งค่าอุปกรณ์แยกตามห้อง”
+        จากนั้นกด “จำลองไปอีก 1 วัน” อีกครั้ง
+      </div>
+    `;
+    return;
+  }
 
-  if (!roomsEnabled || keys.length === 0) {
+  return renderRoomsSummaryFromMaps(el, byRoom, byRoomMonth, evByRoom, evByRoomMonth, false);
+}
+
+/**
+ * วาด UI จากแผนที่ byRoom / byRoomMonth / evByRoom / evByRoomMonth
+ */
+function renderRoomsSummaryFromMaps(el, byRoom, byRoomMonth, evByRoom, evByRoomMonth) {
+  const keys = Object.keys(byRoom || {});
+  if (keys.length === 0) {
     el.innerHTML = `
       <div class="muted">
         ยังไม่มีข้อมูลรายห้อง — ไปที่ “ตั้งค่าโครงสร้างบ้าน” เพื่อสร้างห้อง แล้วเข้าหน้า “ตั้งค่าอุปกรณ์แยกตามห้อง”
@@ -117,15 +190,23 @@ function renderRoomsSummary(result) {
   keys.sort((a, b) => toNumber(byRoom[b], 0) - toNumber(byRoom[a], 0));
 
   const totalDay = keys.reduce((s, k) => s + toNumber(byRoom[k], 0), 0);
-  const totalMonth = keys.reduce((s, k) => s + (toNumber(byRoomMonth[k], 0) || toNumber(byRoom[k], 0) * 30), 0);
+  const totalMonth = keys.reduce((s, k) => {
+    const m = toNumber(byRoomMonth[k], NaN);
+    const d = toNumber(byRoom[k], 0);
+    return s + (Number.isFinite(m) ? m : d * 30);
+  }, 0);
 
   const rows = keys.map((rid) => {
     const kwhDay = toNumber(byRoom[rid], 0);
-    const kwhMonth = toNumber(byRoomMonth[rid], 0) || (kwhDay * 30);
+
+    const monthRaw = toNumber(byRoomMonth[rid], NaN);
+    const kwhMonth = Number.isFinite(monthRaw) ? monthRaw : (kwhDay * 30);
+
     const pct = totalDay > 0 ? Math.round((kwhDay / totalDay) * 100) : 0;
 
-    const evDay = toNumber(evByRoom[rid], 0);
-    const evMonth = toNumber(evByRoomMonth[rid], 0);
+    const evDay = toNumber(evByRoom?.[rid], 0);
+    const evMonthRaw = toNumber(evByRoomMonth?.[rid], NaN);
+    const evMonth = Number.isFinite(evMonthRaw) ? evMonthRaw : (evDay * 30);
 
     const evBadge = evDay > 0
       ? `<span class="badge" style="margin-left:6px;">EV ${fmt(evDay, 1)} kWh/วัน • ${fmt(evMonth, 0)} kWh/เดือน</span>`
@@ -223,7 +304,9 @@ async function main() {
       e.preventDefault();
       try {
         const data = await apiSimulateDay();
-        const result = data.result;
+
+        // ✅ กันพัง: บางที API ส่ง {result:{...}} หรือส่ง {...} ตรง ๆ
+        const result = data.result || data;
 
         updateTopStats(result, data.day_counter);
         renderResultBox(result);
