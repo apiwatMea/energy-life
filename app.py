@@ -72,22 +72,24 @@ APPLIANCES_CATALOG = [
      "defaults": {"enabled": True, "watts": 20, "hours": 24}},
 
     # ✅ EV Charger (อุปกรณ์ในห้อง Parking)
-    # แนวคิดใหม่:
-    #  - พลังงานต่อ "ครั้งชาร์จ" = (battery_kwh * (soc_to - soc_from)/100) / efficiency
-    #  - รายวัน (เพื่อแสดงในสรุปรายวัน) = (พลังงานต่อครั้ง) * (charges_per_week / 7)
-    #  - รายเดือน (เพื่อแสดงในสรุปรายเดือน) = (พลังงานต่อครั้ง) * (charges_per_week * 4)
+    # ✅ NEW RULE:
+    #   - "รายวัน" = 1 ครั้งชาร์จ/วัน (คำนวณจากแบต & % จาก->ถึง)
+    #   - "รายเดือน" = (ครั้ง/สัปดาห์ * 4) * kWh ต่อครั้ง
+    #   - charger_kw ใช้เพื่อคำนวณ "ระยะเวลาชาร์จ" สำหรับแบ่ง TOU เท่านั้น
     {"key": "ev_charger", "name": "EV Charger", "icon": "🔋", "type": "ev_charger",
      "defaults": {
          "enabled": True,
          "battery_kwh": 60,
-         "charger_kw": 7.4,
-         "efficiency": 0.9,
          "soc_from": 30,
          "soc_to": 80,
+         "charger_kw": 7.4,
+         "efficiency": 0.9,
          "charges_per_week": 3,
          "start_hour": 22,
-         # end_hour จะคำนวณอัตโนมัติจาก energy/charger_kw (ถ้าไม่ตั้ง)
-         "end_hour": 2
+         # end_hour จะคำนวณอัตโนมัติจาก % และ charger_kw (ใช้เพื่อ TOU split)
+         "end_hour": 2,
+         # hours เก็บไว้เพื่อ backward compatibility แต่ระบบจะคำนวณเอง
+         "hours": 2.0,
      }},
 ]
 
@@ -492,35 +494,52 @@ def split_kwh_by_tou(kwh, start_h, end_h, on_start, on_end):
     return kwh_on, kwh_off
 
 
-def _clamp(v, lo, hi, default=None):
+# =========================
+# ✅ EV Helper (ต่อ 1 ครั้ง)
+# =========================
+def ev_energy_per_charge_kwh(battery_kwh, soc_from, soc_to):
     try:
-        x = float(v)
+        batt = float(battery_kwh or 0)
+        f = float(soc_from or 0)
+        t = float(soc_to or 0)
     except Exception:
-        x = float(default if default is not None else lo)
-    return max(lo, min(hi, x))
+        batt, f, t = 0.0, 0.0, 0.0
+    f = max(0.0, min(100.0, f))
+    t = max(0.0, min(100.0, t))
+    if t < f:
+        f, t = t, f
+    delta = (t - f) / 100.0
+    return max(0.0, batt * delta)
 
 
-def _ev_energy_per_charge_kwh(cfg: dict):
-    """
-    พลังงานต่อ 'ครั้งชาร์จ' (kWh) = battery_kwh * (soc_to - soc_from)/100 / efficiency
-    """
-    battery = _clamp(cfg.get("battery_kwh", 60), 1, 500, 60)
-    soc_from = _clamp(cfg.get("soc_from", 30), 0, 100, 30)
-    soc_to = _clamp(cfg.get("soc_to", 80), 0, 100, 80)
-    if soc_to < soc_from:
-        soc_to, soc_from = soc_from, soc_to
-    delta = (soc_to - soc_from) / 100.0
-    eff = _clamp(cfg.get("efficiency", 0.9), 0.5, 1.0, 0.9)
-    return (battery * delta) / max(0.01, eff)
+def ev_duration_hours(energy_to_batt_kwh, charger_kw, efficiency):
+    # energy_to_batt_kwh = พลังงานที่ต้อง "เข้าแบต" (kWh)
+    # energy_from_wall = energy_to_batt_kwh / efficiency
+    # duration_hours ≈ energy_to_batt_kwh / (charger_kw * efficiency)
+    try:
+        e = float(energy_to_batt_kwh or 0)
+        p = float(charger_kw or 0)
+        eff = float(efficiency or 0.9)
+    except Exception:
+        return 0.0
+    eff = max(0.5, min(1.0, eff))
+    if p <= 0 or e <= 0:
+        return 0.0
+    h = e / (p * eff)
+    return max(0.0, min(24.0, h))
 
 
-def _ev_hours_needed(cfg: dict, energy_kwh: float):
-    charger_kw = _clamp(cfg.get("charger_kw", 7.4), 0.1, 100, 7.4)
-    return energy_kwh / max(0.01, charger_kw)
+def add_hours_to_clock(start_hour, duration_hours):
+    s = normalize_hour(start_hour)
+    if duration_hours <= 0:
+        return s
+    end = (s + duration_hours) % 24.0
+    return normalize_hour(int(math.floor(end)))
 
 
 # ============================================================
-# ✅ FIX สำคัญ: คำนวณรวมทั้งบ้านจาก "rooms" และส่ง daily/monthly ต่อห้อง
+# ✅ FIX สำคัญ: คำนวณรวมทั้งบ้านจาก "rooms"
+# ✅ NEW: EV รายวัน = ต่อ 1 ครั้ง/วัน, EV รายเดือน = charges_per_week*4
 # ============================================================
 def compute_daily_energy(profile, state):
     tariff_mode = state.get("tariff_mode", "non_tou")
@@ -537,15 +556,12 @@ def compute_daily_energy(profile, state):
     on_start = int(load_setting("on_peak_start", 9))
     on_end = int(load_setting("on_peak_end", 22))
 
-    def _room_calc_breakdown(appliances_dict: dict):
-        """
-        คืนค่า:
-          - kwh_breakdown (รายวัน) ต่ออุปกรณ์ในห้อง
-          - ev_meta (เฉพาะ ev_charger): {kwh_per_charge, kwh_day, kwh_month, charges_per_week}
-        """
-        kwh_breakdown = {}
-        ev_meta = None
+    # เก็บ EV ต่อห้อง: (รายวัน=ต่อ 1 ครั้ง), และ "เดือน" ตาม charges_per_week*4
+    ev_daily_by_room = {}
+    ev_month_by_room = {}
 
+    def _room_calc_breakdown(appliances_dict: dict, room_id: str = ""):
+        kwh_breakdown = {}
         for key, cfg in (appliances_dict or {}).items():
             if not isinstance(cfg, dict):
                 cfg = {}
@@ -570,30 +586,39 @@ def compute_daily_energy(profile, state):
                 kwh_breakdown[key] = calc_generic_kwh(watts, hours)
 
             elif key == "ev_charger":
-                # ✅ EV แบบใหม่
-                kwh_per_charge = _ev_energy_per_charge_kwh(cfg)
-                charges_per_week = int(_clamp(cfg.get("charges_per_week", 3), 0, 31, 3))
-                kwh_day = kwh_per_charge * (charges_per_week / 7.0)
-                kwh_month = kwh_per_charge * (charges_per_week * 4)
+                # ✅ NEW RULE:
+                #   energy_to_batt = battery_kwh * (soc_to - soc_from)/100
+                #   energy_from_wall = energy_to_batt / efficiency
+                batt = float(cfg.get("battery_kwh", 60))
+                soc_from = float(cfg.get("soc_from", 30))
+                soc_to = float(cfg.get("soc_to", 80))
+                eff = float(cfg.get("efficiency", 0.9) or 0.9)
+                eff = max(0.5, min(1.0, eff))
 
-                # สรุปรายวันของบ้าน -> ใช้ kwh_day
-                kwh_breakdown[key] = kwh_day
+                energy_to_batt = ev_energy_per_charge_kwh(batt, soc_from, soc_to)  # kWh เข้าแบต
+                energy_from_wall = energy_to_batt / max(0.01, eff)                 # kWh ที่มิเตอร์เห็น
 
-                ev_meta = {
-                    "kwh_per_charge": kwh_per_charge,
-                    "charges_per_week": charges_per_week,
-                    "kwh_day": kwh_day,
-                    "kwh_month": kwh_month
-                }
+                kwh_breakdown[key] = float(energy_from_wall)
+
+                # EV per-room summary helpers
+                if room_id:
+                    ev_daily_by_room[room_id] = round(energy_from_wall * size_factor * resident_factor, 6)
+                    cpw = cfg.get("charges_per_week", 0)
+                    try:
+                        cpw = int(float(cpw))
+                    except Exception:
+                        cpw = 0
+                    cpw = max(0, min(14, cpw))
+                    ev_month_by_room[room_id] = round((energy_from_wall * cpw * 4) * size_factor * resident_factor, 6)
 
             else:
                 watts = float(cfg.get("watts", 0))
                 hours = float(cfg.get("hours", 0))
                 kwh_breakdown[key] = calc_generic_kwh(watts, hours)
 
-        return kwh_breakdown, ev_meta
+        return kwh_breakdown
 
-    def _tou_split_from_room_breakdown(room_breakdown_scaled: dict, room_cfg: dict):
+    def _tou_split_from_room_breakdown(room_breakdown_scaled: dict, room_cfg: dict, rid: str):
         kwh_on = 0.0
         kwh_off = 0.0
 
@@ -610,19 +635,31 @@ def compute_daily_energy(profile, state):
             kwh_on += ac_on
             kwh_off += ac_off
 
-        # EV charger (รายวันเฉลี่ย)
+        # EV charger (ใช้ start/end ที่คำนวณไว้)
         ev_cfg = (room_cfg.get("appliances") or {}).get("ev_charger", {})
         if isinstance(ev_cfg, dict) and ev_cfg.get("enabled", False):
-            ev_kwh_day = float(room_breakdown_scaled.get("ev_charger", 0.0))
+            ev_kwh = float(room_breakdown_scaled.get("ev_charger", 0.0))
+            start_h = ev_cfg.get("start_hour", 22)
 
-            # เวลาชาร์จ: คิดจากพลังงานต่อครั้ง / charger_kw -> ปัดขึ้นเป็นชั่วโมง แล้ว split ด้วย start_hour
-            per_charge = _ev_energy_per_charge_kwh(ev_cfg)
-            hours_needed = _ev_hours_needed(ev_cfg, per_charge)
-            hours_int = max(1, int(math.ceil(hours_needed))) if per_charge > 0 else 0
-            start_h = normalize_hour(ev_cfg.get("start_hour", 22))
-            end_h = normalize_hour((start_h + hours_int) % 24) if hours_int > 0 else normalize_hour(ev_cfg.get("end_hour", 2))
+            # ถ้าไม่มี end_hour/ไม่อัปเดต ให้คำนวณจาก % และ charger_kw
+            end_h = ev_cfg.get("end_hour", None)
+            try:
+                end_h = int(end_h) if end_h is not None else None
+            except Exception:
+                end_h = None
 
-            ev_on, ev_off = split_kwh_by_tou(ev_kwh_day, start_h, end_h, on_start, on_end)
+            if end_h is None:
+                batt = float(ev_cfg.get("battery_kwh", 60))
+                soc_from = float(ev_cfg.get("soc_from", 30))
+                soc_to = float(ev_cfg.get("soc_to", 80))
+                eff = float(ev_cfg.get("efficiency", 0.9) or 0.9)
+                charger_kw = float(ev_cfg.get("charger_kw", 7.4) or 7.4)
+
+                energy_to_batt = ev_energy_per_charge_kwh(batt, soc_from, soc_to)
+                dur = ev_duration_hours(energy_to_batt, charger_kw, eff)
+                end_h = add_hours_to_clock(start_h, dur)
+
+            ev_on, ev_off = split_kwh_by_tou(ev_kwh, start_h, end_h, on_start, on_end)
             kwh_on += ev_on
             kwh_off += ev_off
 
@@ -634,56 +671,27 @@ def compute_daily_energy(profile, state):
     rooms_breakdown = {}
     kwh_total_raw = 0.0
 
-    # Flatten maps สำหรับ frontend
-    kwh_by_room = {}
-    kwh_month_by_room = {}
-    kwh_ev_by_room = {}
-    kwh_ev_month_by_room = {}
-
     if use_rooms:
         for rid, room in rooms.items():
             if not isinstance(room, dict):
                 continue
 
-            bd, ev_meta = _room_calc_breakdown(room.get("appliances") or {})
+            bd = _room_calc_breakdown(room.get("appliances") or {}, room_id=rid)
             room_kwh = sum(bd.values())
 
             # scale ตามขนาดบ้าน/จำนวนคน
             room_kwh_scaled = room_kwh * size_factor * resident_factor
             kwh_total_raw += room_kwh_scaled
 
-            breakdown_scaled = {k: round(v * size_factor * resident_factor, 3) for k, v in bd.items()}
-
-            # รายเดือน = รายวัน * 30
-            room_kwh_month_scaled = room_kwh_scaled * 30.0
-
             rooms_breakdown[rid] = {
                 "type": room.get("type", ""),
                 "label": room.get("label", rid),
-                "kwh_total": round(room_kwh_scaled, 3),
-                "kwh_month": round(room_kwh_month_scaled, 3),
-                "breakdown": breakdown_scaled
+                "kwh_total": round(room_kwh_scaled, 6),
+                "breakdown": {k: round(v * size_factor * resident_factor, 6) for k, v in bd.items()}
             }
-
-            kwh_by_room[rid] = round(room_kwh_scaled, 3)
-            kwh_month_by_room[rid] = round(room_kwh_month_scaled, 3)
-
-            # EV ต่อห้อง
-            if ev_meta:
-                ev_day_scaled = ev_meta["kwh_day"] * size_factor * resident_factor
-                ev_month_scaled = ev_meta["kwh_month"] * size_factor * resident_factor
-                kwh_ev_by_room[rid] = round(ev_day_scaled, 3)
-                kwh_ev_month_by_room[rid] = round(ev_month_scaled, 3)
-
-                rooms_breakdown[rid]["ev"] = {
-                    "kwh_per_charge": round(ev_meta["kwh_per_charge"], 3),
-                    "charges_per_week": int(ev_meta["charges_per_week"]),
-                    "kwh_day": round(ev_day_scaled, 3),
-                    "kwh_month": round(ev_month_scaled, 3),
-                }
     else:
         # fallback เดิม (ครบบ้าน)
-        bd, _ = _room_calc_breakdown(state.get("appliances") or {})
+        bd = _room_calc_breakdown(state.get("appliances") or {}, room_id="")
         kwh_total_raw = sum(bd.values()) * size_factor * resident_factor
         rooms_breakdown = {}
 
@@ -716,7 +724,7 @@ def compute_daily_energy(profile, state):
 
             for rid, room in rooms.items():
                 rb_scaled = rooms_breakdown.get(rid, {}).get("breakdown", {})
-                room_on, room_off = _tou_split_from_room_breakdown(rb_scaled, room)
+                room_on, room_off = _tou_split_from_room_breakdown(rb_scaled, room, rid)
                 temp_on += room_on
                 temp_off += room_off
 
@@ -760,28 +768,56 @@ def compute_daily_energy(profile, state):
         insights.append(f"Solar Advisor: แนะนำติดตั้ง ~{solar_reco_kw} kW (ปรับได้ตามพฤติกรรม)")
         solar_kw = solar_reco_kw
 
+    # =========
+    # ✅ NEW: สรุปแยกห้อง (รายวัน + รายเดือน)
+    # - รายวัน: รวมตามที่คำนวณปกติ (EV = 1 ครั้ง/วัน)
+    # - รายเดือน: (อุปกรณ์ทั่วไป * 30) แต่ EV ใช้ (charges_per_week*4) แทน
+    # =========
+    kwh_by_room = {}
+    kwh_by_room_month = {}
+    kwh_ev_by_room = {}
+    kwh_ev_by_room_month = {}
+
+    if use_rooms:
+        for rid, rinfo in rooms_breakdown.items():
+            day_total = float(rinfo.get("kwh_total", 0.0))
+            kwh_by_room[rid] = round(day_total, 3)
+
+            ev_day = float(ev_daily_by_room.get(rid, 0.0))
+            ev_mon = float(ev_month_by_room.get(rid, 0.0))
+
+            # monthly total = (daily_total * 30) - (ev_day*30) + ev_mon
+            mon_total = (day_total * 30.0) - (ev_day * 30.0) + ev_mon
+            kwh_by_room_month[rid] = round(max(0.0, mon_total), 3)
+
+            kwh_ev_by_room[rid] = round(ev_day, 3)
+            kwh_ev_by_room_month[rid] = round(ev_mon, 3)
+
+    kwh_total_month = round(sum(kwh_by_room_month.values()), 3) if use_rooms else round(kwh_total * 30.0, 3)
+
     return {
         "kwh_total": round(kwh_total, 3),
         "kwh_net": round(kwh_net, 3),
         "kwh_on": round(kwh_on, 3),
         "kwh_off": round(kwh_off, 3),
         "kwh_solar_used": round(kwh_solar_used, 3),
-        "kwh_ev": 0.0,
+        "kwh_ev": 0.0,  # legacy placeholder
         "cost_thb": round(cost_thb, 2),
         "warnings": warnings[:5],
         "insights": insights[:5],
         "points_earned": int(points),
         "solar_kw": solar_kw,
 
-        # ✅ ส่งรายละเอียดห้อง
+        # ✅ breakdown แบบละเอียด
         "rooms_breakdown": rooms_breakdown,
 
-        # ✅ ส่งแบบแบนให้ JS ใช้ง่าย (รายวัน/รายเดือน)
+        # ✅ fields ที่ front-end ใช้ง่าย (รองรับสรุปแยกรายห้อง)
         "rooms_enabled": bool(use_rooms),
         "kwh_by_room": kwh_by_room,
-        "kwh_month_by_room": kwh_month_by_room,
+        "kwh_by_room_month": kwh_by_room_month,
         "kwh_ev_by_room": kwh_ev_by_room,
-        "kwh_ev_month_by_room": kwh_ev_month_by_room,
+        "kwh_ev_by_room_month": kwh_ev_by_room_month,
+        "kwh_total_month": kwh_total_month,
     }
 
 
@@ -1024,26 +1060,25 @@ def room_detail(rid):
                 cfg["kwh_per_day"] = _to_float_form(f"{key}__kwh_per_day", cfg.get("kwh_per_day", 1.2), 0, 30)
 
             elif t == "ev_charger":
-                # ✅ FIX: อ่าน/เซฟทุกฟิลด์ที่หน้า form ส่งมา (soc_from/soc_to/battery/charges_per_week)
-                cfg["battery_kwh"] = _to_float_form(f"{key}__battery_kwh", cfg.get("battery_kwh", 60), 1, 500)
-                cfg["charger_kw"] = _to_float_form(f"{key}__charger_kw", cfg.get("charger_kw", 7.4), 0.1, 50)
-                cfg["efficiency"] = _to_float_form(f"{key}__efficiency", cfg.get("efficiency", 0.9), 0.5, 1.0)
-
+                # ✅ รับค่าตาม UI ใหม่ทั้งหมด
+                cfg["battery_kwh"] = _to_float_form(f"{key}__battery_kwh", cfg.get("battery_kwh", 60), 20, 200)
                 cfg["soc_from"] = _to_int_form(f"{key}__soc_from", cfg.get("soc_from", 30), 0, 100)
                 cfg["soc_to"] = _to_int_form(f"{key}__soc_to", cfg.get("soc_to", 80), 0, 100)
+                if cfg["soc_to"] < cfg["soc_from"]:
+                    cfg["soc_from"], cfg["soc_to"] = cfg["soc_to"], cfg["soc_from"]
 
-                cfg["charges_per_week"] = _to_int_form(f"{key}__charges_per_week", cfg.get("charges_per_week", 3), 0, 31)
+                cfg["charger_kw"] = _to_float_form(f"{key}__charger_kw", cfg.get("charger_kw", 7.4), 0.1, 50)
+                cfg["efficiency"] = _to_float_form(f"{key}__efficiency", cfg.get("efficiency", 0.9), 0.5, 1.0)
+                cfg["charges_per_week"] = _to_int_form(f"{key}__charges_per_week", cfg.get("charges_per_week", 3), 0, 14)
 
                 cfg["start_hour"] = _to_int_form(f"{key}__start_hour", cfg.get("start_hour", 22), 0, 23)
 
-                # end_hour: ถ้าฟอร์มไม่ได้ส่ง ก็เก็บเดิมไว้
-                if request.form.get(f"{key}__end_hour") is not None:
-                    cfg["end_hour"] = _to_int_form(f"{key}__end_hour", cfg.get("end_hour", 2), 0, 23)
+                # ✅ คำนวณชั่วโมงชาร์จ (ไว้ใช้ TOU split) จาก % และขนาดชาร์จ
+                energy_to_batt = ev_energy_per_charge_kwh(cfg["battery_kwh"], cfg["soc_from"], cfg["soc_to"])
+                dur = ev_duration_hours(energy_to_batt, cfg["charger_kw"], cfg["efficiency"])
 
-                # ✅ คำนวณ hours ต่อครั้ง (เพื่อเก็บไว้ให้ดู / เผื่ออนาคต)
-                per_charge = _ev_energy_per_charge_kwh(cfg)
-                hours_needed = _ev_hours_needed(cfg, per_charge)
-                cfg["hours_per_charge"] = float(round(hours_needed, 3))
+                cfg["hours"] = round(dur, 4)  # เก็บไว้เพื่อ compatibility
+                cfg["end_hour"] = add_hours_to_clock(cfg["start_hour"], dur)
 
             else:
                 cfg["watts"] = _to_float_form(f"{key}__watts", cfg.get("watts", 100), 0, 100000)
