@@ -91,61 +91,15 @@ function renderResultBox(result) {
   `;
 }
 
-/**
- * ✅ รองรับ 2 schema:
- * 1) ใหม่: result.rooms_breakdown = { room_id: { label,type,kwh_total,breakdown{appliance:kwh} } }
- * 2) เก่า: result.rooms_enabled + result.kwh_by_room (+ result.kwh_ev_by_room)
- */
 function renderRoomsSummary(result) {
   const el = $("roomsSummary");
   if (!el) return;
 
-  // ---------- Schema ใหม่ ----------
-  const rb = result.rooms_breakdown;
-  if (rb && typeof rb === "object" && Object.keys(rb).length > 0) {
-    const keys = Object.keys(rb);
-
-    // sort ใช้ไฟมาก -> น้อย
-    keys.sort((a, b) => toNumber(rb[b]?.kwh_total, 0) - toNumber(rb[a]?.kwh_total, 0));
-
-    const total = keys.reduce((s, rid) => s + toNumber(rb[rid]?.kwh_total, 0), 0);
-
-    const rows = keys.map((rid) => {
-      const room = rb[rid] || {};
-      const label = room.label || rid;
-      const kwh = toNumber(room.kwh_total, 0);
-      const pct = total > 0 ? Math.round((kwh / total) * 100) : 0;
-
-      // EV badge (ถ้ามี ev_charger ใน breakdown)
-      const evKwh = toNumber(room.breakdown?.ev_charger, 0);
-      const evBadge = evKwh > 0
-        ? `<span class="badge" style="margin-left:6px;">EV ${fmt(evKwh, 1)} kWh</span>`
-        : "";
-
-      return `
-        <div style="padding:10px 0;border-bottom:1px dashed rgba(255,255,255,.08);">
-          <div class="row between">
-            <div>
-              <div class="mini-title">${escapeHtml(label)} <span class="muted small">(${escapeHtml(rid)})</span></div>
-              <div class="muted small">${pct}% ของทั้งบ้าน ${evBadge}</div>
-            </div>
-            <div class="big" style="font-size:18px;">${fmt(kwh, 2)} kWh</div>
-          </div>
-        </div>
-      `;
-    }).join("");
-
-    el.innerHTML = `
-      <div class="muted small">รวมทั้งบ้าน (รายห้อง): <b>${fmt(total, 2)}</b> kWh</div>
-      <div class="mt1">${rows}</div>
-    `;
-    return;
-  }
-
-  // ---------- Schema เก่า (กันพัง) ----------
   const roomsEnabled = !!result.rooms_enabled;
   const byRoom = result.kwh_by_room || {};
+  const byRoomMonth = result.kwh_month_by_room || {};
   const evByRoom = result.kwh_ev_by_room || {};
+  const evByRoomMonth = result.kwh_ev_month_by_room || {};
 
   const keys = Object.keys(byRoom);
 
@@ -159,16 +113,22 @@ function renderRoomsSummary(result) {
     return;
   }
 
+  // sort ใช้ไฟมาก -> น้อย (รายวัน)
   keys.sort((a, b) => toNumber(byRoom[b], 0) - toNumber(byRoom[a], 0));
-  const total = keys.reduce((s, k) => s + toNumber(byRoom[k], 0), 0);
+
+  const totalDay = keys.reduce((s, k) => s + toNumber(byRoom[k], 0), 0);
+  const totalMonth = keys.reduce((s, k) => s + (toNumber(byRoomMonth[k], 0) || toNumber(byRoom[k], 0) * 30), 0);
 
   const rows = keys.map((rid) => {
-    const kwh = toNumber(byRoom[rid], 0);
-    const ev = toNumber(evByRoom[rid], 0);
-    const pct = total > 0 ? Math.round((kwh / total) * 100) : 0;
+    const kwhDay = toNumber(byRoom[rid], 0);
+    const kwhMonth = toNumber(byRoomMonth[rid], 0) || (kwhDay * 30);
+    const pct = totalDay > 0 ? Math.round((kwhDay / totalDay) * 100) : 0;
 
-    const evBadge = ev > 0
-      ? `<span class="badge" style="margin-left:6px;">EV ${fmt(ev, 1)} kWh</span>`
+    const evDay = toNumber(evByRoom[rid], 0);
+    const evMonth = toNumber(evByRoomMonth[rid], 0);
+
+    const evBadge = evDay > 0
+      ? `<span class="badge" style="margin-left:6px;">EV ${fmt(evDay, 1)} kWh/วัน • ${fmt(evMonth, 0)} kWh/เดือน</span>`
       : "";
 
     return `
@@ -177,15 +137,22 @@ function renderRoomsSummary(result) {
           <div>
             <div class="mini-title">${escapeHtml(rid)}</div>
             <div class="muted small">${pct}% ของทั้งบ้าน ${evBadge}</div>
+            <div class="muted small">รายวัน: <b>${fmt(kwhDay, 2)}</b> kWh • รายเดือน: <b>${fmt(kwhMonth, 0)}</b> kWh</div>
           </div>
-          <div class="big" style="font-size:18px;">${fmt(kwh, 2)} kWh</div>
+          <div class="big" style="font-size:18px;text-align:right;">
+            ${fmt(kwhDay, 2)} kWh<br/>
+            <span class="muted small">${fmt(kwhMonth, 0)} kWh/เดือน</span>
+          </div>
         </div>
       </div>
     `;
   }).join("");
 
   el.innerHTML = `
-    <div class="muted small">รวมทั้งบ้าน (รายห้อง): <b>${fmt(total, 2)}</b> kWh</div>
+    <div class="muted small">
+      รวมทั้งบ้าน (รายวัน): <b>${fmt(totalDay, 2)}</b> kWh •
+      รวมทั้งบ้าน (รายเดือน): <b>${fmt(totalMonth, 0)}</b> kWh
+    </div>
     <div class="mt1">${rows}</div>
   `;
 }
