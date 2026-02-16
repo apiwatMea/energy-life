@@ -35,7 +35,7 @@
   </header>
 
   <main class="grid2">
-    <!-- LEFT: ตั้งค่า (ปรับให้เหลือเฉพาะ มิเตอร์ + Solar + ปุ่มลัด + ปุ่มใช้งาน) -->
+    <!-- LEFT: ตั้งค่า -->
     <section class="card">
       <h2>ตั้งค่า “บ้านจริงของคุณ”</h2>
 
@@ -69,7 +69,7 @@
 
       <div class="divider"></div>
 
-      <!-- ✅ ตัด list อุปกรณ์ภาพรวมออก เหลือแค่ปุ่มลัด -->
+      <!-- ✅ โซนตั้งค่าแยกตามห้อง + สรุปสถานะ -->
       <h3>ตั้งค่าแยกตามห้อง</h3>
       <div class="muted small">
         ตั้งค่าห้อง (Bedroom/Bathroom/Kitchen/Parking ฯลฯ) และอุปกรณ์ในแต่ละห้องได้ที่นี่
@@ -80,9 +80,106 @@
         <a class="btn" href="{{ url_for('rooms_setup') }}">🧩 ตั้งค่าอุปกรณ์แยกตามห้อง</a>
       </div>
 
+      <!-- ✅ NEW: สรุปโครงสร้างบ้านที่บันทึกแล้ว + สถานะรายห้อง -->
+      <div class="panel mt2">
+        {% set hl = state.house_layout if state.house_layout is defined else {} %}
+        {% set hl_enabled = (hl.enabled if hl and hl.enabled is defined else False) %}
+        {% set rooms_map = state.rooms if state.rooms is defined else {} %}
+
+        {% if not hl_enabled %}
+          <div class="muted">
+            ยังไม่ได้ตั้งค่าโครงสร้างบ้าน — แนะนำกด “ตั้งค่าโครงสร้างบ้าน” เพื่อสร้างห้องก่อน ✅
+          </div>
+        {% else %}
+          <div class="mini-title">📌 สรุปโครงสร้างบ้านที่บันทึกแล้ว</div>
+          <div class="muted small mt1">
+            ประเภทบ้าน: <b>{{ hl.house_type if hl.house_type is defined else "-" }}</b>
+          </div>
+
+          {% set rcount = hl.rooms if hl.rooms is defined else {} %}
+          <div class="muted small mt1">
+            จำนวนห้อง:
+            {% if rcount %}
+              {% for k, v in rcount.items() %}
+                <b>{{ k }}</b> {{ v }}{% if not loop.last %} • {% endif %}
+              {% endfor %}
+            {% else %}
+              -
+            {% endif %}
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="mini-title">✅ สถานะการตั้งค่าอุปกรณ์รายห้อง</div>
+
+          {# นับจำนวนห้องที่บันทึกแล้ว/ยังไม่บันทึก #}
+          {% set ns = namespace(saved=0, total=0) %}
+          {% for rid, room in (rooms_map.items() if rooms_map else []) %}
+            {% set ns.total = ns.total + 1 %}
+            {% set apps = room.appliances if room.appliances is defined else {} %}
+            {% set savedRoom = false %}
+            {% if apps %}
+              {% for ak, cfg in apps.items() %}
+                {% if cfg is mapping and (cfg|length) > 0 %}
+                  {% set savedRoom = true %}
+                {% endif %}
+              {% endfor %}
+            {% endif %}
+            {% if savedRoom %}
+              {% set ns.saved = ns.saved + 1 %}
+            {% endif %}
+          {% endfor %}
+
+          <div class="muted small mt1">
+            สรุป: บันทึกแล้ว <b>{{ ns.saved }}</b> / <b>{{ ns.total }}</b> ห้อง
+            {% if ns.total > ns.saved %}
+              • เหลืออีก <b>{{ ns.total - ns.saved }}</b> ห้องที่ยังไม่บันทึก
+            {% endif %}
+          </div>
+
+          <div class="mt2">
+            {% if not rooms_map or (rooms_map|length) == 0 %}
+              <div class="muted">ยังไม่มีรายการห้อง (ลองกด “ตั้งค่าโครงสร้างบ้าน” แล้วบันทึก)</div>
+            {% else %}
+              {% for rid, room in rooms_map.items() %}
+                {% set label = room.label if room.label is defined else rid %}
+                {% set rtype = room.type if room.type is defined else "" %}
+                {% set apps = room.appliances if room.appliances is defined else {} %}
+
+                {% set savedRoom = false %}
+                {% if apps %}
+                  {% for ak, cfg in apps.items() %}
+                    {% if cfg is mapping and (cfg|length) > 0 %}
+                      {% set savedRoom = true %}
+                    {% endif %}
+                  {% endfor %}
+                {% endif %}
+
+                <div class="row between" style="padding:10px 0;border-bottom:1px dashed rgba(255,255,255,.08);">
+                  <div>
+                    <div class="mini-title">{{ label }}</div>
+                    <div class="muted small">room_id: <b>{{ rid }}</b>{% if rtype %} • type: <b>{{ rtype }}</b>{% endif %}</div>
+                    <div class="muted small mt1">
+                      {% if savedRoom %}
+                        <span class="badge">✅ บันทึกแล้ว</span>
+                      {% else %}
+                        <span class="badge">🟡 ยังไม่บันทึก</span>
+                      {% endif %}
+                    </div>
+                  </div>
+                  <div class="row gap">
+                    <a class="btn" href="{{ url_for('room_detail', rid=rid) }}">แก้ไขห้องนี้</a>
+                  </div>
+                </div>
+              {% endfor %}
+            {% endif %}
+          </div>
+        {% endif %}
+      </div>
+
       <div class="divider"></div>
 
-      <!-- ✅ ตัด EV โหมดเดิมออก เหลือปุ่มใช้งานจริง -->
+      <!-- ✅ ปุ่มใช้งานจริง -->
       <div class="row gap mt2">
         <button class="btn" id="saveBtn" type="button">💾 บันทึกการตั้งค่า</button>
         <button class="btn primary" id="simBtn" type="button">▶ จำลองไปอีก 1 วัน</button>
@@ -107,8 +204,7 @@
         <div class="mini">
           <div class="mini-title">📅 ประมาณ/เดือน</div>
           <div class="big" id="statCostMonth">—</div>
-          <!-- ✅ NEW: ใช้ให้ app.js โชว์ Non-TOU vs TOU + คำแนะนำ -->
-          <div class="muted small" id="statCostMonthHint">คำนวณจากผลจำลองล่าสุด</div>
+          <div class="muted small">คำนวณจาก “วันนี้ × 30”</div>
         </div>
       </div>
 
