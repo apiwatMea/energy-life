@@ -18,7 +18,6 @@
           <span class="muted">โหมดใช้งานจริง</span>
           • TOU: <b id="statTariff">{{ state.tariff_mode }}</b>
           • Solar: <b id="statSolar">{{ state.solar_kw }}</b> kW
-          • EV: <b id="statEv">{{ "ON" if state.ev_enabled else "OFF" }}</b>
         </div>
       </div>
     </div>
@@ -36,43 +35,12 @@
   </header>
 
   <main class="grid2">
-    <!-- LEFT: ตั้งค่า -->
+    <!-- LEFT: ตั้งค่า (ปรับให้เหลือเฉพาะ มิเตอร์ + Solar + ปุ่มลัด + ปุ่มใช้งาน) -->
     <section class="card">
       <h2>ตั้งค่า “บ้านจริงของคุณ”</h2>
 
-      <div class="grid3 mt">
-        <div class="mini">
-          <div class="mini-title">👤 ผู้เล่น</div>
-          <select id="player_type">
-            <option value="kid" {{ 'selected' if profile.player_type=='kid' else '' }}>เด็ก</option>
-            <option value="adult" {{ 'selected' if profile.player_type=='adult' else '' }}>ผู้ใหญ่</option>
-            <option value="family" {{ 'selected' if profile.player_type=='family' else '' }}>ครอบครัว</option>
-          </select>
-        </div>
-        <div class="mini">
-          <div class="mini-title">🏠 ประเภทบ้าน</div>
-          <select id="house_type">
-            <option value="condo" {{ 'selected' if profile.house_type=='condo' else '' }}>คอนโด</option>
-            <option value="single_1" {{ 'selected' if profile.house_type=='single_1' else '' }}>บ้าน 1 ชั้น</option>
-            <option value="single_2" {{ 'selected' if profile.house_type=='single_2' else '' }}>บ้าน 2 ชั้น</option>
-            <option value="single_3" {{ 'selected' if profile.house_type=='single_3' else '' }}>บ้าน 3 ชั้น</option>
-          </select>
-        </div>
-        <div class="mini">
-          <div class="mini-title">📏 ขนาดบ้าน</div>
-          <select id="house_size">
-            <option value="small" {{ 'selected' if profile.house_size=='small' else '' }}>เล็ก</option>
-            <option value="medium" {{ 'selected' if profile.house_size=='medium' else '' }}>กลาง</option>
-            <option value="large" {{ 'selected' if profile.house_size=='large' else '' }}>ใหญ่</option>
-          </select>
-        </div>
-      </div>
-
+      <!-- ✅ เหลือแค่ มิเตอร์ / Solar Mode / Solar (kW) -->
       <div class="row gap mt">
-        <div class="mini grow">
-          <div class="mini-title">👨‍👩‍👧‍👦 จำนวนคนในบ้าน</div>
-          <input id="residents" type="number" min="1" max="12" value="{{ profile.residents }}"/>
-        </div>
         <div class="mini grow">
           <div class="mini-title">🧾 มิเตอร์</div>
           <select id="tariff_mode">
@@ -80,6 +48,7 @@
             <option value="tou" {{ 'selected' if state.tariff_mode=='tou' else '' }}>TOU</option>
           </select>
         </div>
+
         <div class="mini grow">
           <div class="mini-title">☀️ Solar Mode</div>
           <select id="solar_mode">
@@ -87,6 +56,7 @@
             <option value="advisor" {{ 'selected' if state.solar_mode=='advisor' else '' }}>ให้ระบบแนะนำ</option>
           </select>
         </div>
+
         <div class="mini grow">
           <div class="mini-title">☀️ Solar (kW)</div>
           <select id="solar_kw">
@@ -99,25 +69,10 @@
 
       <div class="divider"></div>
 
-      <h3>อุปกรณ์ไฟฟ้า (ภาพรวม) 🔌</h3>
+      <!-- ✅ ตัด list อุปกรณ์ภาพรวมออก เหลือแค่ปุ่มลัด -->
+      <h3>ตั้งค่าแยกตามห้อง</h3>
       <div class="muted small">
-        ถ้าอยากตั้งค่า “แยกตามห้อง” ให้กดปุ่มด้านล่าง (ห้องนอน/ห้องน้ำ/ครัว/ที่จอดรถ ฯลฯ)
-      </div>
-
-      <div class="appliances mt2">
-        {% for a in appliances_catalog %}
-          {% set cfg = state.appliances[a.key] %}
-          <div class="row between" style="padding:8px 0;border-bottom:1px dashed rgba(255,255,255,.08);">
-            <div class="row gap">
-              <div class="ap-ico">{{ a.icon }}</div>
-              <div>
-                <div class="ap-name">{{ a.name }}</div>
-                <div class="muted small">key: {{ a.key }}</div>
-              </div>
-            </div>
-            <div class="muted small">{{ "ON" if cfg.enabled else "OFF" }}</div>
-          </div>
-        {% endfor %}
+        ตั้งค่าห้อง (Bedroom/Bathroom/Kitchen/Parking ฯลฯ) และอุปกรณ์ในแต่ละห้องได้ที่นี่
       </div>
 
       <div class="row gap mt2">
@@ -127,42 +82,7 @@
 
       <div class="divider"></div>
 
-      <h3>🚗 รถไฟฟ้า (EV - โหมดเดิม)</h3>
-      <div class="row between">
-        <div class="muted">โหมดเดิม (ทั้งบ้าน) — ถ้าคุณใช้ EV Charger ในห้อง Parking ก็จะนับรวมอัตโนมัติอยู่แล้ว</div>
-        <label class="pill">
-          <input id="ev_enabled" type="checkbox" {{ 'checked' if state.ev_enabled else '' }}>
-          เปิดใช้ EV
-        </label>
-      </div>
-
-      <div id="ev_panel" class="grid3 mt2">
-        <div class="mini">
-          <div class="mini-title">แบต (kWh)</div>
-          <input id="ev_batt" type="number" step="1" min="20" max="120" value="{{ state.ev.battery_kwh }}"/>
-        </div>
-        <div class="mini">
-          <div class="mini-title">Charger (kW)</div>
-          <select id="ev_charger">
-            {% for kw in [3.5,7.4,11,22] %}
-              <option value="{{kw}}" {{ 'selected' if state.ev.charger_kw==kw else '' }}>{{kw}}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="mini">
-          <div class="mini-title">เริ่มชาร์จ (ชั่วโมง)</div>
-          <input id="ev_start" type="number" min="0" max="23" value="{{ state.ev.charge_start_hour }}"/>
-        </div>
-        <div class="mini">
-          <div class="mini-title">ชาร์จจาก % → %</div>
-          <div class="row gap">
-            <input id="ev_from" type="number" min="0" max="100" value="{{ state.ev.soc_from }}"/>
-            <span class="muted">→</span>
-            <input id="ev_to" type="number" min="0" max="100" value="{{ state.ev.soc_to }}"/>
-          </div>
-        </div>
-      </div>
-
+      <!-- ✅ ตัด EV โหมดเดิมออก เหลือปุ่มใช้งานจริง -->
       <div class="row gap mt2">
         <button class="btn" id="saveBtn" type="button">💾 บันทึกการตั้งค่า</button>
         <button class="btn primary" id="simBtn" type="button">▶ จำลองไปอีก 1 วัน</button>
@@ -198,7 +118,6 @@
         <div class="muted">กด “จำลองไปอีก 1 วัน” เพื่อดูหน่วยไฟและค่าไฟ</div>
       </div>
 
-      <!-- ✅ NEW: สรุปต่อห้อง -->
       <div class="divider"></div>
 
       <h3>📌 สรุปการใช้ไฟ “แยกตามห้อง”</h3>
