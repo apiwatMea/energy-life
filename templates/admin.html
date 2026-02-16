@@ -1,4 +1,4 @@
-
+<!-- templates/admin.html -->
 <!doctype html>
 <html lang="th">
 <head>
@@ -10,89 +10,134 @@
 <body class="bg">
 <div class="shell">
   <header class="top bar">
-    <div class="row gap">
-      <a class="btn" href="{{ url_for('home') }}">← กลับบ้าน</a>
+    <div class="row between">
       <div>
-        <div class="title">🛠 Admin Dashboard</div>
-        <div class="subtitle">สถิติคนเล่น + ตั้งค่าอัตราค่าไฟ (MVP)</div>
+        <div class="title">🛠 Admin</div>
+        <div class="subtitle muted">ตั้งค่าอัตราค่าไฟ/TOU/Ft เพื่อใช้คำนวณ “เงินจริง”</div>
       </div>
-    </div>
-    <div class="row gap">
-      <a class="btn ghost" href="{{ url_for('logout') }}">ออก</a>
+      <div class="row gap">
+        <a class="btn" href="{{ url_for('home') }}">🏠 กลับหน้าหลัก</a>
+      </div>
     </div>
   </header>
 
   <main class="grid2">
     <section class="card">
-      <h2>สถิติผู้ใช้งาน</h2>
-      <div class="grid3 mt">
+      <h2>สถิติระบบ</h2>
+      <div class="grid3 mt2">
         <div class="mini"><div class="mini-title">ผู้ใช้ทั้งหมด</div><div class="big">{{ total_users }}</div></div>
-        <div class="mini"><div class="mini-title">Active วันนี้</div><div class="big">{{ todays }}</div></div>
         <div class="mini"><div class="mini-title">Active 7 วัน</div><div class="big">{{ active_7d }}</div></div>
+        <div class="mini"><div class="mini-title">Active 30 วัน</div><div class="big">{{ active_30d }}</div></div>
       </div>
       <div class="grid3 mt2">
-        <div class="mini"><div class="mini-title">Active 30 วัน</div><div class="big">{{ active_30d }}</div></div>
-        <div class="mini"><div class="mini-title">kWh เฉลี่ย/วัน (ระบบ)</div><div class="big">{{ "%.2f"|format(avg_kwh) }}</div></div>
-        <div class="mini"><div class="mini-title">ค่าไฟเฉลี่ย/วัน (ระบบ)</div><div class="big">{{ "%.2f"|format(avg_cost) }}</div></div>
+        <div class="mini"><div class="mini-title">Active วันนี้</div><div class="big">{{ todays }}</div></div>
+        <div class="mini"><div class="mini-title">เฉลี่ย kWh/วัน</div><div class="big">{{ "%.2f"|format(avg_kwh) }}</div></div>
+        <div class="mini"><div class="mini-title">เฉลี่ยค่าไฟ/วัน</div><div class="big">{{ "%.0f"|format(avg_cost) }}</div></div>
       </div>
 
       <div class="divider"></div>
 
-      <h2>ตั้งค่าอัตราค่าไฟ (MVP)</h2>
-      <form method="post" action="{{ url_for('admin_settings') }}" class="form">
-        <div class="grid3">
-          <div>
-            <label>Non‑TOU (฿/kWh)</label>
-            <input name="non_tou_rate" value="{{ settings.non_tou_rate }}"/>
+      <h2>ตั้งค่า “คิดเงินจริง”</h2>
+      <form method="post" action="{{ url_for('admin_settings') }}">
+        <h3>✅ Ft</h3>
+        <div class="row gap mt2">
+          <div class="mini grow">
+            <div class="mini-title">Ft (สตางค์/หน่วย)</div>
+            <input name="ft_stang_per_kwh" type="number" step="0.01" value="{{ settings.ft_stang_per_kwh }}"/>
           </div>
-          <div>
-            <label>TOU On‑Peak (฿/kWh)</label>
-            <input name="tou_on_rate" value="{{ settings.tou_on_rate }}"/>
-          </div>
-          <div>
-            <label>TOU Off‑Peak (฿/kWh)</label>
-            <input name="tou_off_rate" value="{{ settings.tou_off_rate }}"/>
+          <div class="mini grow">
+            <div class="mini-title">Label เดือน/งวด (เช่น 04/2026)</div>
+            <input name="ft_label" type="text" value="{{ settings.ft_label }}"/>
           </div>
         </div>
+
+        <div class="divider"></div>
+
+        <h3>✅ Non-TOU (ขั้นบันได)</h3>
         <div class="grid3 mt2">
-          <div>
-            <label>On‑Peak Start (ชั่วโมง)</label>
-            <input name="on_peak_start" value="{{ settings.on_peak_start }}"/>
+          <div class="mini">
+            <div class="mini-title">ชั้น 1 ถึง (kWh)</div>
+            <input name="non_tou_tier1_kwh" type="number" step="1" value="{{ settings.non_tou_tier1_kwh }}"/>
           </div>
-          <div>
-            <label>On‑Peak End (ชั่วโมง)</label>
-            <input name="on_peak_end" value="{{ settings.on_peak_end }}"/>
+          <div class="mini">
+            <div class="mini-title">ชั้น 2 ถึง (kWh)</div>
+            <input name="non_tou_tier2_kwh" type="number" step="1" value="{{ settings.non_tou_tier2_kwh }}"/>
           </div>
-          <div class="row end">
-            <button class="btn primary" type="submit">บันทึก</button>
+          <div class="mini">
+            <div class="mini-title">ค่าบริการ (บาท/เดือน)</div>
+            <input name="non_tou_service_fee" type="number" step="0.01" value="{{ settings.non_tou_service_fee }}"/>
           </div>
+        </div>
+
+        <div class="grid3 mt2">
+          <div class="mini">
+            <div class="mini-title">อัตราชั้น 1 (บาท/หน่วย)</div>
+            <input name="non_tou_tier1_rate" type="number" step="0.0001" value="{{ settings.non_tou_tier1_rate }}"/>
+          </div>
+          <div class="mini">
+            <div class="mini-title">อัตราชั้น 2 (บาท/หน่วย)</div>
+            <input name="non_tou_tier2_rate" type="number" step="0.0001" value="{{ settings.non_tou_tier2_rate }}"/>
+          </div>
+          <div class="mini">
+            <div class="mini-title">อัตราชั้น 3 (บาท/หน่วย)</div>
+            <input name="non_tou_tier3_rate" type="number" step="0.0001" value="{{ settings.non_tou_tier3_rate }}"/>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <h3>✅ TOU</h3>
+        <div class="grid3 mt2">
+          <div class="mini">
+            <div class="mini-title">On-Peak (บาท/หน่วย)</div>
+            <input name="tou_on_rate" type="number" step="0.0001" value="{{ settings.tou_on_rate }}"/>
+          </div>
+          <div class="mini">
+            <div class="mini-title">Off-Peak (บาท/หน่วย)</div>
+            <input name="tou_off_rate" type="number" step="0.0001" value="{{ settings.tou_off_rate }}"/>
+          </div>
+          <div class="mini">
+            <div class="mini-title">ค่าบริการ (บาท/เดือน)</div>
+            <input name="tou_service_fee" type="number" step="0.01" value="{{ settings.tou_service_fee }}"/>
+          </div>
+        </div>
+
+        <div class="row gap mt2">
+          <div class="mini grow">
+            <div class="mini-title">On-Peak เริ่ม (ชั่วโมง)</div>
+            <input name="on_peak_start" type="number" min="0" max="23" step="1" value="{{ settings.on_peak_start }}"/>
+          </div>
+          <div class="mini grow">
+            <div class="mini-title">On-Peak จบ (ชั่วโมง)</div>
+            <input name="on_peak_end" type="number" min="0" max="23" step="1" value="{{ settings.on_peak_end }}"/>
+          </div>
+        </div>
+
+        <div class="row gap mt2">
+          <button class="btn primary" type="submit">💾 บันทึกการตั้งค่า</button>
+        </div>
+
+        <div class="muted small mt2">
+          หมายเหตุ: ระบบจะคิด VAT 7% อัตโนมัติ และ Ft จะคิดจาก “หน่วยรวมต่อเดือน”
         </div>
       </form>
     </section>
 
     <aside class="card">
-      <h2>รายชื่อผู้ใช้ล่าสุด</h2>
-      <div class="tablewrap">
-        <table>
-          <thead><tr><th>ID</th><th>ชื่อผู้ใช้</th><th>Role</th><th>Points</th><th>Lv</th><th></th></tr></thead>
-          <tbody>
-            {% for u in users %}
-              <tr>
-                <td>{{ u.id }}</td>
-                <td>{{ u.username }}</td>
-                <td>{{ u.role }}</td>
-                <td>{{ u.points if u.points is not none else 0 }}</td>
-                <td>{{ u.house_level if u.house_level is not none else 1 }}</td>
-                <td><a class="btn" href="{{ url_for('admin_user', user_id=u.id) }}">ดูบ้าน</a></td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-
-      <div class="divider"></div>
-      <div class="muted small">
-        *ค่าเริ่มต้น Admin: <b>admin</b>/<b>admin1234</b> (เปลี่ยนได้โดยตั้งค่า ENV: ENERGY_LIFE_ADMIN_PASS)
+      <h2>ผู้ใช้ล่าสุด</h2>
+      <div class="muted small">แสดง 50 รายการล่าสุด</div>
+      <div class="mt2">
+        {% for u in users %}
+          <div style="padding:10px 0;border-bottom:1px dashed rgba(255,255,255,.08);">
+            <div class="row between">
+              <div>
+                <div class="mini-title">#{{ u.id }} • {{ u.username }}</div>
+                <div class="muted small">role: {{ u.role }} • points: {{ u.points or 0 }} • level: {{ u.house_level or 1 }}</div>
+              </div>
+              <a class="btn" href="{{ url_for('admin_user', user_id=u.id) }}">ดู</a>
+            </div>
+          </div>
+        {% endfor %}
       </div>
     </aside>
   </main>
