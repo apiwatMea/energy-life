@@ -70,6 +70,15 @@ function renderResultBox(result) {
     ? `<div class="muted small mt1">EV รวม: <b>${fmt(result.kwh_ev, 2)}</b> kWh</div>`
     : "";
 
+  // ✅ billing compare line
+  const bn = result.bill_non_tou?.total;
+  const bt = result.bill_tou?.total;
+  const reco = result.bill_recommend_text;
+  const billLine = (bn !== undefined && bt !== undefined)
+    ? `<div class="muted small mt1">📌 เปรียบเทียบ/เดือน: Non-TOU <b>${fmt(bn,0)}</b> บาท • TOU <b>${fmt(bt,0)}</b> บาท<br/>
+       <span class="muted small">${escapeHtml(reco || "")}</span></div>`
+    : "";
+
   box.innerHTML = `
     <div class="row between">
       <div>
@@ -84,6 +93,7 @@ function renderResultBox(result) {
       ${touLine}
       ${solarLine}
       ${evLine}
+      ${billLine}
     </div>
 
     ${insights ? `<div class="mt2"><div class="mini-title">✅ อินไซต์</div><ul class="tips">${insights}</ul></div>` : ""}
@@ -100,9 +110,6 @@ function renderRoomsSummary(result) {
   const el = $("roomsSummary");
   if (!el) return;
 
-  // -------------------------------
-  // Schema B: rooms_breakdown
-  // -------------------------------
   const rb = result.rooms_breakdown && typeof result.rooms_breakdown === "object"
     ? result.rooms_breakdown
     : null;
@@ -143,9 +150,6 @@ function renderRoomsSummary(result) {
     return renderRoomsSummaryFromMaps(el, byRoom, byRoomMonth, evByRoom, evByRoomMonth);
   }
 
-  // -------------------------------
-  // Schema A: fields แบบเดิม
-  // -------------------------------
   const roomsEnabled = !!result.rooms_enabled;
   const byRoom = result.kwh_by_room || {};
   const byRoomMonth = result.kwh_month_by_room || {};
@@ -166,9 +170,6 @@ function renderRoomsSummary(result) {
   return renderRoomsSummaryFromMaps(el, byRoom, byRoomMonth, evByRoom, evByRoomMonth);
 }
 
-/**
- * วาด UI จากแผนที่ byRoom / byRoomMonth / evByRoom / evByRoomMonth
- */
 function renderRoomsSummaryFromMaps(el, byRoom, byRoomMonth, evByRoom, evByRoomMonth) {
   const keys = Object.keys(byRoom || {});
   if (keys.length === 0) {
@@ -192,7 +193,6 @@ function renderRoomsSummaryFromMaps(el, byRoom, byRoomMonth, evByRoom, evByRoomM
 
   const rows = keys.map((rid) => {
     const kwhDay = toNumber(byRoom[rid], 0);
-
     const monthRaw = toNumber(byRoomMonth[rid], NaN);
     const kwhMonth = Number.isFinite(monthRaw) ? monthRaw : (kwhDay * 30);
 
@@ -232,91 +232,30 @@ function renderRoomsSummaryFromMaps(el, byRoom, byRoomMonth, evByRoom, evByRoomM
   `;
 }
 
-/* =========================
-   ✅ NEW: หา kWh รายเดือนรวมจาก result
-   ========================= */
-function getMonthlyKwhTotal(result) {
-  // 1) backend ส่งตรง
-  const direct =
-    toNumber(result.kwh_month_total, NaN) ||
-    toNumber(result.kwh_total_month, NaN) ||
-    toNumber(result.month_kwh_total, NaN);
-
-  if (Number.isFinite(direct)) return direct;
-
-  // 2) schema A: kwh_month_by_room
-  if (result.kwh_month_by_room && typeof result.kwh_month_by_room === "object") {
-    const m = Object.values(result.kwh_month_by_room).reduce((s, v) => s + toNumber(v, 0), 0);
-    if (m > 0) return m;
-  }
-
-  // 3) schema B: rooms_breakdown (ถ้ามี month ต่อห้องให้ใช้, ถ้าไม่มีก็ fallback day*30)
-  const rb = result.rooms_breakdown && typeof result.rooms_breakdown === "object" ? result.rooms_breakdown : null;
-  if (rb && Object.keys(rb).length > 0) {
-    const keys = Object.keys(rb);
-    const sum = keys.reduce((s, rid) => {
-      const r = rb[rid] || {};
-      const m =
-        toNumber(r.kwh_month_total, NaN) ||
-        toNumber(r.kwh_total_month, NaN) ||
-        toNumber(r.month_kwh_total, NaN);
-
-      if (Number.isFinite(m)) return s + m;
-      return s + toNumber(r.kwh_total, 0) * 30;
-    }, 0);
-    if (sum > 0) return sum;
-  }
-
-  // 4) fallback: รายวัน * 30
-  return toNumber(result.kwh_total, 0) * 30;
-}
-
-/* =========================
-   ✅ NEW: หา "ค่าไฟรายเดือน" ให้ถูกต้อง
-   ========================= */
-function getMonthlyCost(result) {
-  // 1) backend ส่งตรง (แนะนำที่สุด)
-  const direct =
-    toNumber(result.cost_month_thb, NaN) ||
-    toNumber(result.cost_thb_month, NaN) ||
-    toNumber(result.month_cost_thb, NaN);
-
-  if (Number.isFinite(direct)) return direct;
-
-  // 2) ถ้ามีเรทรวมมาใน result ค่อยคูณ (เผื่ออนาคต backend แนบ rate)
-  const kwhMonth = getMonthlyKwhTotal(result);
-
-  const tariffMode = result.tariff_mode; // ถ้า backend แนบมา
-  const nonTouRate = toNumber(result.non_tou_rate, NaN);
-  const touOnRate = toNumber(result.tou_on_rate, NaN);
-  const touOffRate = toNumber(result.tou_off_rate, NaN);
-
-  if (tariffMode === "tou" && Number.isFinite(touOnRate) && Number.isFinite(touOffRate)) {
-    // ถ้ามี on/off เดือนส่งมา
-    const onM = toNumber(result.kwh_on_month, NaN);
-    const offM = toNumber(result.kwh_off_month, NaN);
-    if (Number.isFinite(onM) && Number.isFinite(offM)) {
-      return onM * touOnRate + offM * touOffRate;
-    }
-    // ไม่มี split เดือน -> fallback ดีกว่า
-  }
-
-  if (Number.isFinite(nonTouRate)) {
-    return kwhMonth * nonTouRate;
-  }
-
-  // 3) fallback สุดท้าย: cost รายวัน * 30 (อาจผิดกรณี EV)
-  return toNumber(result.cost_thb, 0) * 30;
-}
-
+// ✅ เปลี่ยนสรุปย่อ ให้แสดง “บิลจริงแบบ A/B” แทน วันนี้×30
 function updateTopStats(result, dayCounter) {
   if ($("statKwhDay")) $("statKwhDay").textContent = `${fmt(result.kwh_total, 2)}`;
   if ($("statCostDay")) $("statCostDay").textContent = `${fmt(result.cost_thb, 0)}`;
 
-  // ✅ FIX: ใช้ค่าไฟรายเดือนจริง (ถ้ามี) ไม่ใช่รายวัน*30
+  // ✅ แสดง “แนะนำ/เดือน” จากการ compare
+  const bn = result.bill_non_tou?.total;
+  const bt = result.bill_tou?.total;
+  const reco = result.bill_recommend_text || "";
   if ($("statCostMonth")) {
-    const costMonth = getMonthlyCost(result);
-    $("statCostMonth").textContent = `${fmt(costMonth, 0)}`;
+    if (bn !== undefined && bt !== undefined) {
+      // โชว์ค่า TOU/Non-TOU ที่ถูกกว่าเป็นหลัก
+      const recommended = (result.bill_recommend === "TOU") ? bt
+        : (result.bill_recommend === "Non-TOU") ? bn
+        : Math.min(bn, bt);
+
+      $("statCostMonth").textContent = `${fmt(recommended, 0)}`;
+      if ($("statCostMonthHint")) {
+        $("statCostMonthHint").textContent = `Non-TOU ${fmt(bn,0)} • TOU ${fmt(bt,0)} — ${reco}`;
+      }
+    } else {
+      $("statCostMonth").textContent = `—`;
+      if ($("statCostMonthHint")) $("statCostMonthHint").textContent = `คำนวณจากผลจำลองล่าสุด`;
+    }
   }
 
   if ($("dayCounter") && dayCounter !== undefined) $("dayCounter").textContent = String(dayCounter);
@@ -326,25 +265,9 @@ function collectPayloadFromUI(currentState) {
   const profile = currentState.profile || {};
   const state = currentState.state || {};
 
-  // profile
-  profile.player_type = $("player_type") ? $("player_type").value : profile.player_type;
-  profile.house_type = $("house_type") ? $("house_type").value : profile.house_type;
-  profile.house_size = $("house_size") ? $("house_size").value : profile.house_size;
-  profile.residents = $("residents") ? toNumber($("residents").value, profile.residents) : profile.residents;
-
-  // state
   state.tariff_mode = $("tariff_mode") ? $("tariff_mode").value : state.tariff_mode;
   state.solar_mode = $("solar_mode") ? $("solar_mode").value : state.solar_mode;
   state.solar_kw = $("solar_kw") ? toNumber($("solar_kw").value, state.solar_kw) : state.solar_kw;
-
-  // legacy EV
-  state.ev_enabled = $("ev_enabled") ? $("ev_enabled").checked : state.ev_enabled;
-  state.ev = state.ev || {};
-  if ($("ev_batt")) state.ev.battery_kwh = toNumber($("ev_batt").value, state.ev.battery_kwh);
-  if ($("ev_charger")) state.ev.charger_kw = toNumber($("ev_charger").value, state.ev.charger_kw);
-  if ($("ev_start")) state.ev.charge_start_hour = toNumber($("ev_start").value, state.ev.charge_start_hour);
-  if ($("ev_from")) state.ev.soc_from = toNumber($("ev_from").value, state.ev.soc_from);
-  if ($("ev_to")) state.ev.soc_to = toNumber($("ev_to").value, state.ev.soc_to);
 
   return { profile, state };
 }
@@ -365,7 +288,6 @@ async function main() {
 
         if ($("statTariff")) $("statTariff").textContent = current.state.tariff_mode;
         if ($("statSolar")) $("statSolar").textContent = String(current.state.solar_kw);
-        if ($("statEv")) $("statEv").textContent = current.state.ev_enabled ? "ON" : "OFF";
 
         alert("บันทึกแล้ว ✅");
       } catch (err) {
