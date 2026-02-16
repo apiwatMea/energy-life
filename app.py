@@ -42,31 +42,12 @@ def current_week_id(dt=None):
     return f"{iso.year}-W{iso.week:02d}"
 
 
-# ============================================================
-# ✅ DEFAULT SETTINGS (Admin ปรับได้)
-# ============================================================
 DEFAULT_TARIFF = {
-    # --- Non-TOU ---
-    # ขั้นบันได (หน่วย/เดือน) — ใส่เป็น placeholder (Admin ปรับตามจริงได้)
-    "non_tou_tier1_kwh": 150,       # 1-150
-    "non_tou_tier2_kwh": 400,       # 151-400 (upper bound)
-    "non_tou_tier1_rate": 3.2484,   # THB/kWh placeholder
-    "non_tou_tier2_rate": 4.2218,   # THB/kWh placeholder
-    "non_tou_tier3_rate": 4.4217,   # THB/kWh placeholder
-    "non_tou_service_fee": 38.22,   # THB/month placeholder
-
-    # --- TOU ---
-    "tou_on_rate": 5.50,            # THB/kWh placeholder
-    "tou_off_rate": 3.30,           # THB/kWh placeholder
-    "tou_service_fee": 38.22,       # THB/month placeholder
-
-    # TOU time window
-    "on_peak_start": 9,             # 09:00
-    "on_peak_end": 22,              # 22:00 end exclusive
-
-    # Ft (สตางค์/หน่วย) — Admin ตั้งตามเดือน
-    "ft_stang_per_kwh": 0.0,        # เช่น 9.72 = 9.72 สตางค์/หน่วย
-    "ft_label": "manual"            # label เดือน/ปี (ไว้แสดงผล)
+    "non_tou_rate": 4.20,  # THB/kWh placeholder
+    "tou_on_rate": 5.50,
+    "tou_off_rate": 3.30,
+    "on_peak_start": 9,   # 09:00
+    "on_peak_end": 22     # 22:00 end exclusive
 }
 
 
@@ -103,7 +84,9 @@ APPLIANCES_CATALOG = [
          "soc_to": 80,
          "charges_per_week": 2,
          "start_hour": 22,
+         # end_hour จะคำนวณอัตโนมัติจาก ชั่วโมงชาร์จ (ถ้าไม่ระบุ)
          "end_hour": 2,
+         # hours เก็บไว้ได้ (legacy) แต่ระบบจะคำนวณใหม่ให้จาก % และ kW
          "hours": 2.0
      }},
 ]
@@ -260,7 +243,7 @@ def init_db():
     );
     """)
 
-    # seed tariff settings (รวมของเก่า + ของใหม่)
+    # seed tariff settings
     for k, v in DEFAULT_TARIFF.items():
         db.execute("INSERT OR IGNORE INTO settings(key,value) VALUES(?,?)", (k, str(v)))
     db.commit()
@@ -368,6 +351,11 @@ ROOM_TEMPLATES = {
 
 
 def build_rooms_from_layout(layout: dict):
+    """
+    ✅ สร้าง rooms ใหม่จาก layout
+    - appliances เริ่มต้นเป็น {} เพื่อบอกว่า "ยังไม่บันทึก"
+    - เพิ่ม configured=False เพื่อใช้ทำสถานะบนหน้า HOME แบบชัดเจน
+    """
     rooms = {}
     for room_type, count in (layout.get("rooms") or {}).items():
         count = int(count or 0)
@@ -376,7 +364,8 @@ def build_rooms_from_layout(layout: dict):
             rooms[rid] = {
                 "type": room_type,
                 "label": f"{room_type.capitalize()} {i}",
-                "appliances": {k: {} for k in ROOM_TEMPLATES.get(room_type, [])}
+                "appliances": {k: {} for k in ROOM_TEMPLATES.get(room_type, [])},
+                "configured": False  # ✅ ยังไม่บันทึก
             }
     return rooms
 
@@ -424,16 +413,56 @@ def default_state():
     }
 
 
+def _infer_room_configured(room: dict) -> bool:
+    """
+    ✅ Migration helper:
+    ห้องเก่าที่ไม่มี configured -> เดาจาก appliances ว่าเคยมีการบันทึกหรือยัง
+    หลักการ: ถ้า appliance cfg ใด ๆ มี dict ที่ไม่ว่าง (len>0) ถือว่ามีการบันทึกแล้ว
+    """
+    try:
+        appl = room.get("appliances") or {}
+        if not isinstance(appl, dict):
+            return False
+        for _, cfg in appl.items():
+            if isinstance(cfg, dict) and len(cfg) > 0:
+                return True
+        return False
+    except Exception:
+        return False
+
+
 def get_or_create_user_state(user_id):
     db = get_db()
     row = db.execute("SELECT * FROM user_state WHERE user_id=?", (user_id,)).fetchone()
     if row:
+        profile = json.loads(row["profile_json"])
+        state = json.loads(row["state_json"])
+
+        # ✅ Migration: เติม configured ให้ rooms เก่า และ save กลับอัตโนมัติ (ครั้งเดียว)
+        changed = False
+        rooms = (state.get("rooms") or {})
+        if isinstance(rooms, dict) and rooms:
+            for rid, room in rooms.items():
+                if isinstance(room, dict) and "configured" not in room:
+                    room["configured"] = _infer_room_configured(room)
+                    rooms[rid] = room
+                    changed = True
+            if changed:
+                state["rooms"] = rooms
+                now = datetime.utcnow().isoformat()
+                db.execute("""
+                    UPDATE user_state SET state_json=?, updated_at=?
+                    WHERE user_id=?
+                """, (json.dumps(state), now, user_id))
+                db.commit()
+
         return {
-            "profile": json.loads(row["profile_json"]),
-            "state": json.loads(row["state_json"]),
+            "profile": profile,
+            "state": state,
             "points": row["points"],
             "house_level": row["house_level"]
         }
+
     prof = default_profile()
     st = default_state()
     now = datetime.utcnow().isoformat()
@@ -492,6 +521,8 @@ def calc_ev_kwh_per_charge(battery_kwh, soc_from, soc_to, efficiency):
 
     efficiency = max(0.5, min(1.0, efficiency))
     delta = max(0.0, min(100.0, soc_to) - max(0.0, soc_from))
+    # พลังงานเข้าแบต = battery_kwh * delta%
+    # พลังงานจากกริด = / efficiency
     return (battery_kwh * (delta / 100.0)) / max(0.01, efficiency)
 
 
@@ -536,80 +567,7 @@ def split_kwh_by_tou(kwh, start_h, end_h, on_start, on_end):
 
 
 # ============================================================
-# ✅ BILLING (Non-TOU vs TOU) + Ft + VAT
-# ============================================================
-def _ft_baht_per_kwh():
-    # Ft input เป็น "สตางค์/หน่วย"
-    ft_stang = float(load_setting("ft_stang_per_kwh", 0.0) or 0.0)
-    return ft_stang / 100.0
-
-
-def calc_bill_non_tou_month(kwh_month):
-    kwh = max(0.0, float(kwh_month or 0.0))
-    t1_kwh = float(load_setting("non_tou_tier1_kwh", 150) or 150)
-    t2_kwh = float(load_setting("non_tou_tier2_kwh", 400) or 400)
-
-    r1 = float(load_setting("non_tou_tier1_rate", 0.0) or 0.0)
-    r2 = float(load_setting("non_tou_tier2_rate", 0.0) or 0.0)
-    r3 = float(load_setting("non_tou_tier3_rate", 0.0) or 0.0)
-
-    service = float(load_setting("non_tou_service_fee", 0.0) or 0.0)
-    ft = _ft_baht_per_kwh()
-
-    kwh1 = min(kwh, t1_kwh)
-    kwh2 = max(0.0, min(kwh, t2_kwh) - t1_kwh)
-    kwh3 = max(0.0, kwh - t2_kwh)
-
-    energy = kwh1 * r1 + kwh2 * r2 + kwh3 * r3
-    ft_cost = kwh * ft
-    subtotal = energy + service + ft_cost
-    vat = subtotal * 0.07
-    total = subtotal + vat
-
-    return {
-        "kwh": round(kwh, 3),
-        "energy": round(energy, 2),
-        "service": round(service, 2),
-        "ft_cost": round(ft_cost, 2),
-        "vat": round(vat, 2),
-        "total": round(total, 2),
-        "ft_stang_per_kwh": round(float(load_setting("ft_stang_per_kwh", 0.0) or 0.0), 2),
-        "ft_label": str(load_setting("ft_label", "manual") or "manual"),
-    }
-
-
-def calc_bill_tou_month(kwh_on_month, kwh_off_month):
-    on = max(0.0, float(kwh_on_month or 0.0))
-    off = max(0.0, float(kwh_off_month or 0.0))
-    total_kwh = on + off
-
-    on_rate = float(load_setting("tou_on_rate", 0.0) or 0.0)
-    off_rate = float(load_setting("tou_off_rate", 0.0) or 0.0)
-    service = float(load_setting("tou_service_fee", 0.0) or 0.0)
-    ft = _ft_baht_per_kwh()
-
-    energy = on * on_rate + off * off_rate
-    ft_cost = total_kwh * ft
-    subtotal = energy + service + ft_cost
-    vat = subtotal * 0.07
-    total = subtotal + vat
-
-    return {
-        "kwh_on": round(on, 3),
-        "kwh_off": round(off, 3),
-        "kwh": round(total_kwh, 3),
-        "energy": round(energy, 2),
-        "service": round(service, 2),
-        "ft_cost": round(ft_cost, 2),
-        "vat": round(vat, 2),
-        "total": round(total, 2),
-        "ft_stang_per_kwh": round(float(load_setting("ft_stang_per_kwh", 0.0) or 0.0), 2),
-        "ft_label": str(load_setting("ft_label", "manual") or "manual"),
-    }
-
-
-# ============================================================
-# ✅ คำนวณรายวัน + รายเดือน + เปรียบเทียบ TOU/Non-TOU
+# ✅ คำนวณรายวัน + สร้างสรุปรายห้องรายวัน/รายเดือน (EV สูตรพิเศษ)
 # ============================================================
 def compute_daily_energy(profile, state):
     tariff_mode = state.get("tariff_mode", "non_tou")
@@ -627,6 +585,10 @@ def compute_daily_energy(profile, state):
     on_end = int(load_setting("on_peak_end", 22))
 
     def _room_calc_breakdown(appliances_dict: dict):
+        """
+        คืนค่า breakdown รายวันต่ออุปกรณ์
+        - ev_charger: รายวัน = 1 ครั้ง/วัน (kWh ต่อ 1 ครั้งชาร์จ)
+        """
         kwh_breakdown = {}
         for key, cfg in (appliances_dict or {}).items():
             if not isinstance(cfg, dict):
@@ -652,6 +614,7 @@ def compute_daily_energy(profile, state):
                 kwh_breakdown[key] = calc_generic_kwh(watts, hours)
 
             elif key == "ev_charger":
+                # ✅ รายวัน = ต่อ 1 ครั้งชาร์จ/วัน
                 batt = cfg.get("battery_kwh", 60.0)
                 soc_from = cfg.get("soc_from", 30)
                 soc_to = cfg.get("soc_to", 80)
@@ -666,6 +629,9 @@ def compute_daily_energy(profile, state):
         return kwh_breakdown
 
     def _ev_month_kwh_from_cfg(ev_cfg: dict):
+        """
+        ✅ รายเดือน EV = ต่อครั้ง * ครั้ง/สัปดาห์ * 4
+        """
         if not isinstance(ev_cfg, dict) or not ev_cfg.get("enabled", False):
             return 0.0, 0.0  # (kwh_per_charge_day, kwh_month)
         batt = ev_cfg.get("battery_kwh", 60.0)
@@ -701,17 +667,19 @@ def compute_daily_energy(profile, state):
             kwh_on += ac_on
             kwh_off += ac_off
 
-        # EV charger (รายวัน = 1 ครั้ง/วัน)
+        # EV charger (รายวัน = 1 ครั้ง/วัน แต่เวลาชาร์จต้องคำนวณจาก kWh/charger)
         ev_cfg = (room_cfg.get("appliances") or {}).get("ev_charger", {})
         if isinstance(ev_cfg, dict) and ev_cfg.get("enabled", False):
             ev_kwh = float(room_breakdown_scaled.get("ev_charger", 0.0))
 
             start_h = ev_cfg.get("start_hour", 22)
 
+            # ถ้ามี end_hour ใช้เลย ไม่งั้นคำนวณจากชั่วโมงชาร์จ
             end_h = ev_cfg.get("end_hour", None)
             if end_h is None:
                 charger_kw = ev_cfg.get("charger_kw", 7.4)
                 hours = calc_ev_hours(ev_kwh, charger_kw)
+                # ปัดขึ้นเป็นชั่วโมงเพื่อให้ window_hours ไม่ว่าง
                 dur = int(max(1, math.ceil(hours))) if hours > 0 else 1
                 end_h = (normalize_hour(start_h) + dur) % 24
 
@@ -721,65 +689,13 @@ def compute_daily_energy(profile, state):
 
         return kwh_on, kwh_off
 
-    def _tou_split_month_from_rooms(rooms_obj: dict, rooms_breakdown_obj: dict, month_map_by_room: dict, ev_month_map_by_room: dict):
-        """
-        ✅ สร้าง kWh_on/off รายเดือน “ตามพฤติกรรมเวลาใช้งาน” ของ AC/EV
-        - appliance อื่นๆ ที่ไม่มีเวลา: กระจายตาม base_on
-        """
-        temp_on = 0.0
-        temp_off = 0.0
-
-        # 1) คิดเฉพาะ AC/EV แบบมีเวลา -> ได้ known_on/off
-        for rid, room in (rooms_obj or {}).items():
-            rb = rooms_breakdown_obj.get(rid, {}) or {}
-            bd_day_scaled = rb.get("breakdown", {}) or {}
-
-            # --- AC monthly = day*30 ---
-            ac_cfg = (room.get("appliances") or {}).get("ac", {})
-            if isinstance(ac_cfg, dict) and ac_cfg.get("enabled", False):
-                ac_day = float(bd_day_scaled.get("ac", 0.0))
-                ac_month = ac_day * 30.0
-                ac_on, ac_off = split_kwh_by_tou(ac_month, ac_cfg.get("start_hour", 20), ac_cfg.get("end_hour", 2), on_start, on_end)
-                temp_on += ac_on
-                temp_off += ac_off
-
-            # --- EV monthly = สูตรพิเศษ (ต่อครั้ง*ครั้ง/สัปดาห์*4) ---
-            ev_cfg = (room.get("appliances") or {}).get("ev_charger", {})
-            if isinstance(ev_cfg, dict) and ev_cfg.get("enabled", False):
-                ev_month = float(ev_month_map_by_room.get(rid, 0.0))
-                if ev_month > 0:
-                    start_h = ev_cfg.get("start_hour", 22)
-                    end_h = ev_cfg.get("end_hour", None)
-                    if end_h is None:
-                        # ใช้ 1 charge duration เป็นตัวแทน
-                        ev_day = float(bd_day_scaled.get("ev_charger", 0.0))
-                        charger_kw = ev_cfg.get("charger_kw", 7.4)
-                        hours = calc_ev_hours(ev_day, charger_kw)
-                        dur = int(max(1, math.ceil(hours))) if hours > 0 else 1
-                        end_h = (normalize_hour(start_h) + dur) % 24
-                    ev_on, ev_off = split_kwh_by_tou(ev_month, start_h, end_h, on_start, on_end)
-                    temp_on += ev_on
-                    temp_off += ev_off
-
-        known = temp_on + temp_off
-
-        # 2) ส่วนที่เหลือ (appliance ทั่วไป) => แจกตาม base_on
-        total_month = sum(float(v or 0.0) for v in month_map_by_room.values())
-        other = max(0.0, total_month - known)
-
-        house_type = profile.get("house_type", "condo")
-        base_on = 0.65 if house_type == "condo" else 0.58
-
-        kwh_on_m = temp_on + other * base_on
-        kwh_off_m = temp_off + other * (1.0 - base_on)
-        return kwh_on_m, kwh_off_m
-
     rooms = (state.get("rooms") or {})
     use_rooms = isinstance(rooms, dict) and len(rooms) > 0
 
     rooms_breakdown = {}
     kwh_total_raw = 0.0
 
+    # ✅ maps สำหรับหน้าเว็บ (รายวัน/รายเดือน)
     rooms_enabled = bool(use_rooms)
     kwh_by_room = {}
     kwh_month_by_room = {}
@@ -805,6 +721,9 @@ def compute_daily_energy(profile, state):
             ev_day_scaled = ev_day * size_factor * resident_factor
             ev_month_scaled = ev_month * size_factor * resident_factor
 
+            # monthly total room:
+            # - non-EV ใช้สูตร day*30
+            # - EV ใช้สูตรต่อครั้ง*ครั้ง/สัปดาห์*4
             non_ev_day_scaled = max(0.0, room_kwh_scaled - ev_day_scaled)
             room_month_scaled = non_ev_day_scaled * 30.0 + ev_month_scaled
 
@@ -822,20 +741,14 @@ def compute_daily_energy(profile, state):
                 "breakdown": {k: round(v * size_factor * resident_factor, 3) for k, v in bd.items()}
             }
     else:
+        # fallback เดิม (ครบบ้าน) — ไม่ใช่รายห้อง
         bd = _room_calc_breakdown(state.get("appliances") or {})
         kwh_total_raw = sum(bd.values()) * size_factor * resident_factor
         rooms_breakdown = {}
 
-    # --- daily totals ---
-    kwh_total = float(kwh_total_raw)
+    kwh_total = kwh_total_raw
 
-    # --- monthly totals (จากรายห้อง) ---
-    if use_rooms:
-        kwh_month_total = sum(float(v or 0.0) for v in kwh_month_by_room.values())
-    else:
-        kwh_month_total = kwh_total * 30.0
-
-    # Solar heuristic (daily)
+    # Solar advisor
     daytime_frac = 0.45
     if profile.get("player_type") == "adult":
         daytime_frac = 0.42
@@ -847,22 +760,19 @@ def compute_daily_energy(profile, state):
     solar_reco_kw = max(0, min(10, solar_reco_kw))
 
     # Solar production heuristic
-    kwh_solar_prod_day = solar_kw * 4.0
-    kwh_solar_used = min(kwh_total, kwh_solar_prod_day * 0.75)
+    kwh_solar_prod = solar_kw * 4.0
+    kwh_solar_used = min(kwh_total, kwh_solar_prod * 0.75)
     kwh_net = max(0.0, kwh_total - kwh_solar_used)
 
-    # Solar monthly
-    kwh_solar_prod_month = solar_kw * 4.0 * 30.0
-    kwh_solar_used_month = min(kwh_month_total, kwh_solar_prod_month * 0.75)
-    kwh_month_net = max(0.0, kwh_month_total - kwh_solar_used_month)
-
-    # TOU split (daily)
+    # TOU split
     kwh_on = 0.0
     kwh_off = 0.0
+
     if tariff_mode == "tou":
         if use_rooms:
             temp_on = 0.0
             temp_off = 0.0
+
             for rid, room in rooms.items():
                 rb_scaled = rooms_breakdown.get(rid, {}).get("breakdown", {})
                 room_on, room_off = _tou_split_from_room_breakdown(rb_scaled, room)
@@ -886,33 +796,13 @@ def compute_daily_energy(profile, state):
         kwh_off = kwh_net
         kwh_on = 0.0
 
-    # ✅ TOU split (monthly) — ใช้พฤติกรรมเวลา + EV monthly special
-    if use_rooms:
-        kwh_month_on_total, kwh_month_off_total = _tou_split_month_from_rooms(
-            rooms, rooms_breakdown, kwh_month_by_room, kwh_ev_month_by_room
-        )
-    else:
-        # fallback: สัดส่วนฐาน
-        house_type = profile.get("house_type", "condo")
-        base_on = 0.65 if house_type == "condo" else 0.58
-        kwh_month_on_total = kwh_month_net * base_on
-        kwh_month_off_total = kwh_month_net * (1.0 - base_on)
-
-    # ✅ ปรับให้สอดคล้องกับ solar (monthly) => ใช้ net เป็นฐาน
-    # ถ้า on/off รวมไม่เท่ากับ net ให้ normalize
-    month_sum = max(0.000001, (kwh_month_on_total + kwh_month_off_total))
-    scale = kwh_month_net / month_sum
-    kwh_month_on = max(0.0, kwh_month_on_total * scale)
-    kwh_month_off = max(0.0, kwh_month_off_total * scale)
-
-    # Cost (daily: ตาม tariff_mode ที่เลือก)
+    # Cost
     if tariff_mode == "tou":
         on_rate = float(load_setting("tou_on_rate", 5.5))
         off_rate = float(load_setting("tou_off_rate", 3.3))
-        # daily เดิม = energy only (ไม่รวม Ft/Service/VAT)
         cost_thb = kwh_on * on_rate + kwh_off * off_rate
     else:
-        rate = float(load_setting("non_tou_tier2_rate", 4.2))  # fallback rate (ใช้ tier2 เป็นตัวแทน)
+        rate = float(load_setting("non_tou_rate", 4.2))
         cost_thb = kwh_off * rate
 
     # points baseline
@@ -934,56 +824,33 @@ def compute_daily_energy(profile, state):
     if use_rooms:
         kwh_ev_total_day = sum(float(v or 0) for v in kwh_ev_by_room.values())
 
-    # ✅ BILL COMPARE (Monthly)
-    bill_non_tou = calc_bill_non_tou_month(kwh_month_net)
-    bill_tou = calc_bill_tou_month(kwh_month_on, kwh_month_off)
-
-    diff = round(float(bill_non_tou["total"]) - float(bill_tou["total"]), 2)  # + => TOU ถูกกว่า
-    if diff > 0:
-        reco = "TOU"
-        reco_text = f"เหมาะกับ TOU ✅ ประหยัดประมาณ {abs(diff):,.0f} บาท/เดือน"
-    elif diff < 0:
-        reco = "Non-TOU"
-        reco_text = f"ไม่เหมาะกับ TOU ❌ แพงขึ้นประมาณ {abs(diff):,.0f} บาท/เดือน"
-    else:
-        reco = "เท่ากัน"
-        reco_text = "TOU / Non-TOU ใกล้เคียงกัน"
-
     return {
-        # daily
         "kwh_total": round(kwh_total, 3),
         "kwh_net": round(kwh_net, 3),
         "kwh_on": round(kwh_on, 3),
         "kwh_off": round(kwh_off, 3),
         "kwh_solar_used": round(kwh_solar_used, 3),
-        "kwh_ev": round(kwh_ev_total_day, 3),
-        "cost_thb": round(cost_thb, 2),
 
+        # ✅ EV รวมรายวัน (ถ้าเป็นรายห้อง)
+        "kwh_ev": round(kwh_ev_total_day, 3),
+
+        "cost_thb": round(cost_thb, 2),
         "warnings": warnings[:5],
         "insights": insights[:5],
         "points_earned": int(points),
         "solar_kw": solar_kw,
 
-        # rooms
+        # ✅ ให้หน้าเว็บรู้ว่าเปิดโหมดรายห้องอยู่
         "rooms_enabled": rooms_enabled,
+
+        # ✅ maps สำหรับหน้าเว็บ render รายวัน/รายเดือน
         "kwh_by_room": kwh_by_room,
         "kwh_month_by_room": kwh_month_by_room,
         "kwh_ev_by_room": kwh_ev_by_room,
         "kwh_ev_month_by_room": kwh_ev_month_by_room,
-        "rooms_breakdown": rooms_breakdown,
 
-        # ✅ monthly totals + compare
-        "kwh_month_total": round(kwh_month_total, 3),
-        "kwh_month_net": round(kwh_month_net, 3),
-        "kwh_month_on": round(kwh_month_on, 3),
-        "kwh_month_off": round(kwh_month_off, 3),
-        "kwh_solar_used_month": round(kwh_solar_used_month, 3),
-
-        "bill_non_tou": bill_non_tou,
-        "bill_tou": bill_tou,
-        "bill_diff_non_minus_tou": diff,
-        "bill_recommend": reco,
-        "bill_recommend_text": reco_text,
+        # ✅ สำคัญ: ส่ง breakdown รายห้องละเอียด
+        "rooms_breakdown": rooms_breakdown
     }
 
 
@@ -1030,11 +897,13 @@ def close_db(exception):
         db.close()
 
 
+# ===== FIX 1: landing alias (กัน template เก่าเรียก url_for('landing')) =====
 @app.route("/landing")
 def landing():
     return redirect(url_for("index"))
 
 
+# ===== FIX 2: หน้าแรกส่ง app_name เข้า template =====
 @app.route("/")
 def index():
     increment_visitor()
@@ -1042,6 +911,9 @@ def index():
     return render_template("index.html", visitor_count=visitor_count, app_name=APP_NAME)
 
 
+# ============================================================
+# A) HOME
+# ============================================================
 @app.route("/home")
 @login_required
 def home():
@@ -1060,6 +932,9 @@ def home():
     )
 
 
+# =========================
+# HOUSE SETUP (กำหนดโครงสร้างบ้าน)
+# =========================
 @app.route("/house-setup", methods=["GET", "POST"])
 @login_required
 def house_setup():
@@ -1097,15 +972,19 @@ def house_setup():
             }
         }
 
+        # ✅ generate rooms from layout (configured=False ทุกห้อง)
         state["rooms"] = build_rooms_from_layout(state["house_layout"])
 
         save_user_state(user["id"], st["profile"], state, st["points"], st["house_level"])
         flash("บันทึกโครงสร้างบ้านแล้ว ✅ ต่อไปตั้งค่าอุปกรณ์ตามห้องได้เลย", "success")
-        return redirect(url_for("rooms_setup"))
+        return redirect(url_for("home"))
 
     return render_template("house_setup.html", user=user, st=st, app_name=APP_NAME)
 
 
+# =========================
+# ROOMS SETUP (แสดงห้องที่สร้าง)
+# =========================
 @app.route("/rooms-setup", methods=["GET"])
 @login_required
 def rooms_setup():
@@ -1122,6 +1001,9 @@ def rooms_setup():
     )
 
 
+# =========================
+# ROOM DETAIL (ตั้งค่าอุปกรณ์ในห้อง) GET/POST
+# =========================
 def _catalog_by_key():
     return {a["key"]: a for a in APPLIANCES_CATALOG}
 
@@ -1169,6 +1051,7 @@ def room_detail(rid):
     room = rooms[rid]
     catalog = _catalog_by_key()
 
+    # ensure appliance configs exist (merge defaults)
     appl = room.get("appliances") or {}
     for k in list(appl.keys()):
         c = catalog.get(k)
@@ -1210,6 +1093,7 @@ def room_detail(rid):
                 cfg["kwh_per_day"] = _to_float_form(f"{key}__kwh_per_day", cfg.get("kwh_per_day", 1.2), 0, 30)
 
             elif t == "ev_charger":
+                # ✅ FIX: เซฟค่าทุกช่องที่ฟอร์มมีจริง (soc_from/soc_to/charges_per_week/battery_kwh)
                 cfg["battery_kwh"] = _to_float_form(f"{key}__battery_kwh", cfg.get("battery_kwh", 60.0), 10, 200)
                 cfg["charger_kw"] = _to_float_form(f"{key}__charger_kw", cfg.get("charger_kw", 7.4), 0.1, 50)
                 cfg["efficiency"] = _to_float_form(f"{key}__efficiency", cfg.get("efficiency", 0.9), 0.5, 1.0)
@@ -1218,6 +1102,7 @@ def room_detail(rid):
                 cfg["charges_per_week"] = _to_int_form(f"{key}__charges_per_week", cfg.get("charges_per_week", 2), 0, 14)
                 cfg["start_hour"] = _to_int_form(f"{key}__start_hour", cfg.get("start_hour", 22), 0, 23)
 
+                # คำนวณ hours/end_hour อัตโนมัติจาก % และ charger_kw
                 kwh_per_charge = calc_ev_kwh_per_charge(cfg["battery_kwh"], cfg["soc_from"], cfg["soc_to"], cfg["efficiency"])
                 hours = calc_ev_hours(kwh_per_charge, cfg["charger_kw"])
                 cfg["hours"] = round(hours, 2)
@@ -1232,10 +1117,16 @@ def room_detail(rid):
             appl[key] = cfg
 
         rooms[rid]["appliances"] = appl
+
+        # ✅ สำคัญ: บันทึกแล้วให้สถานะเป็น configured=True
+        rooms[rid]["configured"] = True
+
         state["rooms"] = rooms
         save_user_state(user["id"], st["profile"], state, st["points"], st["house_level"])
         flash("บันทึกอุปกรณ์ในห้องแล้ว ✅", "success")
-        return redirect(url_for("room_detail", rid=rid))
+
+        # ✅ UX ตามที่ขอ: บันทึกแล้วเด้งกลับหน้า HOME
+        return redirect(url_for("home"))
 
     return render_template(
         "room_detail.html",
@@ -1305,6 +1196,7 @@ def logout():
     return redirect(url_for("index"))
 
 
+# -------- API --------
 @app.route("/api/state", methods=["GET", "POST"])
 @login_required
 def api_state():
@@ -1366,6 +1258,7 @@ def api_simulate_day():
     return jsonify({"result": res, "points": points_new, "house_level": level_new, "day_counter": state["day_counter"]})
 
 
+# ปิดร้านค้าในโหมดใช้งานจริง
 @app.route("/api/shop", methods=["GET"])
 @login_required
 def api_shop():
@@ -1407,18 +1300,7 @@ def admin():
         FROM users u LEFT JOIN user_state us ON us.user_id=u.id
         ORDER BY u.id DESC LIMIT 50
     """).fetchall()
-
-    # ✅ ส่ง settings ให้ admin ปรับ Ft/TOU/Non-TOU ขั้นบันได
-    keys = [
-        "non_tou_tier1_kwh", "non_tou_tier2_kwh",
-        "non_tou_tier1_rate", "non_tou_tier2_rate", "non_tou_tier3_rate",
-        "non_tou_service_fee",
-        "tou_on_rate", "tou_off_rate", "tou_service_fee",
-        "on_peak_start", "on_peak_end",
-        "ft_stang_per_kwh", "ft_label"
-    ]
-    settings = {k: load_setting(k) for k in keys}
-
+    settings = {k: load_setting(k) for k in ["non_tou_rate", "tou_on_rate", "tou_off_rate", "on_peak_start", "on_peak_end"]}
     return render_template(
         "admin.html",
         total_users=total_users,
@@ -1436,16 +1318,7 @@ def admin():
 @login_required
 @role_required("admin")
 def admin_settings():
-    # ✅ รับค่าจากฟอร์มทั้งหมด
-    keys = [
-        "non_tou_tier1_kwh", "non_tou_tier2_kwh",
-        "non_tou_tier1_rate", "non_tou_tier2_rate", "non_tou_tier3_rate",
-        "non_tou_service_fee",
-        "tou_on_rate", "tou_off_rate", "tou_service_fee",
-        "on_peak_start", "on_peak_end",
-        "ft_stang_per_kwh", "ft_label"
-    ]
-    for key in keys:
+    for key in ["non_tou_rate", "tou_on_rate", "tou_off_rate", "on_peak_start", "on_peak_end"]:
         if key in request.form:
             save_setting(key, request.form.get(key))
     flash("อัปเดตตั้งค่าเรียบร้อย", "success")
@@ -1546,6 +1419,7 @@ def save_user_prefs(user_id: int, prefs: dict):
     db.commit()
 
 
+# ====== โหมดเกม: routes ด้านล่างจะ "ปิด" เมื่อ ENABLE_GAME = False ======
 def _game_disabled_redirect():
     flash("โหมดเกมถูกปิดชั่วคราว (โหมดใช้งานจริง)", "error")
     return redirect(url_for("home"))
