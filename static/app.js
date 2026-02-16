@@ -108,9 +108,8 @@ function renderRoomsSummary(result) {
     : null;
 
   if (rb && Object.keys(rb).length > 0) {
-    // byRoomDay: ใช้ kwh_total ต่อห้อง
     const byRoom = {};
-    const byRoomMonth = {}; // ถ้า backend ยังไม่ส่งรายเดือน -> default *30 (ยกเว้น EV ถ้ามีคีย์รายเดือนเฉพาะ)
+    const byRoomMonth = {};
     const evByRoom = {};
     const evByRoomMonth = {};
 
@@ -120,15 +119,12 @@ function renderRoomsSummary(result) {
       const roomObj = rb[rid] || {};
       const kwhDay = toNumber(roomObj.kwh_total, 0);
 
-      // breakdown per appliance (ถ้ามี)
       const breakdown = roomObj.breakdown || {};
       const evDay = toNumber(breakdown.ev_charger, 0);
 
       byRoom[rid] = kwhDay;
       evByRoom[rid] = evDay;
 
-      // รายเดือน: ถ้า backend ส่งมาอยู่แล้วค่อยใช้ (รองรับหลายชื่อคีย์ เผื่ออนาคต)
-      // - kwh_month_total / kwh_total_month / month_kwh_total ฯลฯ
       const kwhMonthFromBackend =
         toNumber(roomObj.kwh_month_total, NaN) ||
         toNumber(roomObj.kwh_total_month, NaN) ||
@@ -144,8 +140,7 @@ function renderRoomsSummary(result) {
       evByRoomMonth[rid] = Number.isFinite(evMonthFromBackend) ? evMonthFromBackend : (evDay * 30);
     });
 
-    // render เหมือนเดิม
-    return renderRoomsSummaryFromMaps(el, byRoom, byRoomMonth, evByRoom, evByRoomMonth, true);
+    return renderRoomsSummaryFromMaps(el, byRoom, byRoomMonth, evByRoom, evByRoomMonth);
   }
 
   // -------------------------------
@@ -168,7 +163,7 @@ function renderRoomsSummary(result) {
     return;
   }
 
-  return renderRoomsSummaryFromMaps(el, byRoom, byRoomMonth, evByRoom, evByRoomMonth, false);
+  return renderRoomsSummaryFromMaps(el, byRoom, byRoomMonth, evByRoom, evByRoomMonth);
 }
 
 /**
@@ -186,7 +181,6 @@ function renderRoomsSummaryFromMaps(el, byRoom, byRoomMonth, evByRoom, evByRoomM
     return;
   }
 
-  // sort ใช้ไฟมาก -> น้อย (รายวัน)
   keys.sort((a, b) => toNumber(byRoom[b], 0) - toNumber(byRoom[a], 0));
 
   const totalDay = keys.reduce((s, k) => s + toNumber(byRoom[k], 0), 0);
@@ -238,10 +232,93 @@ function renderRoomsSummaryFromMaps(el, byRoom, byRoomMonth, evByRoom, evByRoomM
   `;
 }
 
+/* =========================
+   ✅ NEW: หา kWh รายเดือนรวมจาก result
+   ========================= */
+function getMonthlyKwhTotal(result) {
+  // 1) backend ส่งตรง
+  const direct =
+    toNumber(result.kwh_month_total, NaN) ||
+    toNumber(result.kwh_total_month, NaN) ||
+    toNumber(result.month_kwh_total, NaN);
+
+  if (Number.isFinite(direct)) return direct;
+
+  // 2) schema A: kwh_month_by_room
+  if (result.kwh_month_by_room && typeof result.kwh_month_by_room === "object") {
+    const m = Object.values(result.kwh_month_by_room).reduce((s, v) => s + toNumber(v, 0), 0);
+    if (m > 0) return m;
+  }
+
+  // 3) schema B: rooms_breakdown (ถ้ามี month ต่อห้องให้ใช้, ถ้าไม่มีก็ fallback day*30)
+  const rb = result.rooms_breakdown && typeof result.rooms_breakdown === "object" ? result.rooms_breakdown : null;
+  if (rb && Object.keys(rb).length > 0) {
+    const keys = Object.keys(rb);
+    const sum = keys.reduce((s, rid) => {
+      const r = rb[rid] || {};
+      const m =
+        toNumber(r.kwh_month_total, NaN) ||
+        toNumber(r.kwh_total_month, NaN) ||
+        toNumber(r.month_kwh_total, NaN);
+
+      if (Number.isFinite(m)) return s + m;
+      return s + toNumber(r.kwh_total, 0) * 30;
+    }, 0);
+    if (sum > 0) return sum;
+  }
+
+  // 4) fallback: รายวัน * 30
+  return toNumber(result.kwh_total, 0) * 30;
+}
+
+/* =========================
+   ✅ NEW: หา "ค่าไฟรายเดือน" ให้ถูกต้อง
+   ========================= */
+function getMonthlyCost(result) {
+  // 1) backend ส่งตรง (แนะนำที่สุด)
+  const direct =
+    toNumber(result.cost_month_thb, NaN) ||
+    toNumber(result.cost_thb_month, NaN) ||
+    toNumber(result.month_cost_thb, NaN);
+
+  if (Number.isFinite(direct)) return direct;
+
+  // 2) ถ้ามีเรทรวมมาใน result ค่อยคูณ (เผื่ออนาคต backend แนบ rate)
+  const kwhMonth = getMonthlyKwhTotal(result);
+
+  const tariffMode = result.tariff_mode; // ถ้า backend แนบมา
+  const nonTouRate = toNumber(result.non_tou_rate, NaN);
+  const touOnRate = toNumber(result.tou_on_rate, NaN);
+  const touOffRate = toNumber(result.tou_off_rate, NaN);
+
+  if (tariffMode === "tou" && Number.isFinite(touOnRate) && Number.isFinite(touOffRate)) {
+    // ถ้ามี on/off เดือนส่งมา
+    const onM = toNumber(result.kwh_on_month, NaN);
+    const offM = toNumber(result.kwh_off_month, NaN);
+    if (Number.isFinite(onM) && Number.isFinite(offM)) {
+      return onM * touOnRate + offM * touOffRate;
+    }
+    // ไม่มี split เดือน -> fallback ดีกว่า
+  }
+
+  if (Number.isFinite(nonTouRate)) {
+    return kwhMonth * nonTouRate;
+  }
+
+  // 3) fallback สุดท้าย: cost รายวัน * 30 (อาจผิดกรณี EV)
+  return toNumber(result.cost_thb, 0) * 30;
+}
+
 function updateTopStats(result, dayCounter) {
   if ($("statKwhDay")) $("statKwhDay").textContent = `${fmt(result.kwh_total, 2)}`;
   if ($("statCostDay")) $("statCostDay").textContent = `${fmt(result.cost_thb, 0)}`;
-  if ($("statCostMonth")) $("statCostMonth").textContent = `${fmt(toNumber(result.cost_thb, 0) * 30, 0)}`;
+
+  // ✅ FIX: ใช้ค่าไฟรายเดือนจริง (ถ้ามี) ไม่ใช่รายวัน*30
+  if ($("statCostMonth")) {
+    const costMonth = getMonthlyCost(result);
+    $("statCostMonth").textContent = `${fmt(costMonth, 0)}`;
+  }
+
   if ($("dayCounter") && dayCounter !== undefined) $("dayCounter").textContent = String(dayCounter);
 }
 
@@ -286,7 +363,6 @@ async function main() {
         await apiSaveState({ profile: payload.profile, state: payload.state });
         current = await apiGetState();
 
-        // update header quick stats
         if ($("statTariff")) $("statTariff").textContent = current.state.tariff_mode;
         if ($("statSolar")) $("statSolar").textContent = String(current.state.solar_kw);
         if ($("statEv")) $("statEv").textContent = current.state.ev_enabled ? "ON" : "OFF";
@@ -304,8 +380,6 @@ async function main() {
       e.preventDefault();
       try {
         const data = await apiSimulateDay();
-
-        // ✅ กันพัง: บางที API ส่ง {result:{...}} หรือส่ง {...} ตรง ๆ
         const result = data.result || data;
 
         updateTopStats(result, data.day_counter);
