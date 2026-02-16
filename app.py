@@ -700,7 +700,31 @@ def compute_daily_energy(profile, state):
         kwh_total_raw = sum(bd.values()) * size_factor * resident_factor
         rooms_breakdown = {}
 
+        # ✅ เพิ่ม monthly รวมบ้านแบบถูกต้อง (EV สูตรพิเศษ) แม้ไม่ได้ใช้ rooms
+        ev_cfg = (state.get("appliances") or {}).get("ev_charger", {})
+        ev_day, ev_month = _ev_month_kwh_from_cfg(ev_cfg)
+        ev_day_scaled = ev_day * size_factor * resident_factor
+        ev_month_scaled = ev_month * size_factor * resident_factor
+        non_ev_day_scaled = max(0.0, kwh_total_raw - ev_day_scaled)
+        # สร้าง map รวมบ้าน (optional, เผื่อ frontend ใช้)
+        kwh_by_room = {}
+        kwh_month_by_room = {}
+        kwh_ev_by_room = {}
+        kwh_ev_month_by_room = {}
+
     kwh_total = kwh_total_raw
+
+    # ✅ รวม kWh รายเดือนทั้งบ้าน (ฐานเดียวกับ “รายเดือนแยกห้อง”)
+    if use_rooms:
+        kwh_month_total = sum(float(v or 0) for v in kwh_month_by_room.values())
+    else:
+        # รวมบ้าน: non-EV *30 + EV*(ครั้ง/สัปดาห์*4)
+        ev_cfg = (state.get("appliances") or {}).get("ev_charger", {})
+        ev_day, ev_month = _ev_month_kwh_from_cfg(ev_cfg)
+        ev_day_scaled = ev_day * size_factor * resident_factor
+        ev_month_scaled = ev_month * size_factor * resident_factor
+        non_ev_day_scaled = max(0.0, kwh_total - ev_day_scaled)
+        kwh_month_total = non_ev_day_scaled * 30.0 + ev_month_scaled
 
     # Solar advisor
     daytime_frac = 0.45
@@ -713,12 +737,17 @@ def compute_daily_energy(profile, state):
     solar_reco_kw = int(round(daytime_kwh / 3.0))
     solar_reco_kw = max(0, min(10, solar_reco_kw))
 
-    # Solar production heuristic
+    # Solar production heuristic (รายวัน)
     kwh_solar_prod = solar_kw * 4.0
     kwh_solar_used = min(kwh_total, kwh_solar_prod * 0.75)
     kwh_net = max(0.0, kwh_total - kwh_solar_used)
 
-    # TOU split
+    # ✅ Solar production heuristic (รายเดือน)
+    kwh_solar_prod_month = solar_kw * 4.0 * 30.0
+    kwh_solar_used_month = min(kwh_month_total, kwh_solar_prod_month * 0.75)
+    kwh_month_net = max(0.0, kwh_month_total - kwh_solar_used_month)
+
+    # TOU split (รายวัน)
     kwh_on = 0.0
     kwh_off = 0.0
 
@@ -750,7 +779,7 @@ def compute_daily_energy(profile, state):
         kwh_off = kwh_net
         kwh_on = 0.0
 
-    # Cost
+    # Cost (รายวัน)
     if tariff_mode == "tou":
         on_rate = float(load_setting("tou_on_rate", 5.5))
         off_rate = float(load_setting("tou_off_rate", 3.3))
@@ -758,6 +787,27 @@ def compute_daily_energy(profile, state):
     else:
         rate = float(load_setting("non_tou_rate", 4.2))
         cost_thb = kwh_off * rate
+
+    # ✅ Cost (รายเดือน) — ใช้ kwh_month_net เป็นฐาน
+    if tariff_mode == "tou":
+        on_rate = float(load_setting("tou_on_rate", 5.5))
+        off_rate = float(load_setting("tou_off_rate", 3.3))
+
+        # ประมาณการสัดส่วน on/off จาก “รายวัน” แล้วนำไปกระจายบน “รายเดือน”
+        if kwh_net > 0:
+            on_frac = max(0.0, min(1.0, kwh_on / kwh_net))
+        else:
+            on_frac = 0.0
+        off_frac = 1.0 - on_frac
+
+        kwh_on_month = kwh_month_net * on_frac
+        kwh_off_month = kwh_month_net * off_frac
+        cost_month_thb = kwh_on_month * on_rate + kwh_off_month * off_rate
+    else:
+        rate = float(load_setting("non_tou_rate", 4.2))
+        kwh_on_month = 0.0
+        kwh_off_month = kwh_month_net
+        cost_month_thb = kwh_month_net * rate
 
     # points baseline
     baseline = 14.0 * size_factor * resident_factor
@@ -777,18 +827,30 @@ def compute_daily_energy(profile, state):
     kwh_ev_total_day = 0.0
     if use_rooms:
         kwh_ev_total_day = sum(float(v or 0) for v in kwh_ev_by_room.values())
+    else:
+        # รวมบ้าน: ดึงจาก appliances
+        ev_cfg = (state.get("appliances") or {}).get("ev_charger", {})
+        ev_day, _ = _ev_month_kwh_from_cfg(ev_cfg)
+        kwh_ev_total_day = ev_day * size_factor * resident_factor
 
     return {
+        # รายวัน
         "kwh_total": round(kwh_total, 3),
         "kwh_net": round(kwh_net, 3),
         "kwh_on": round(kwh_on, 3),
         "kwh_off": round(kwh_off, 3),
         "kwh_solar_used": round(kwh_solar_used, 3),
-
-        # ✅ EV รวมรายวัน (ถ้าเป็นรายห้อง)
         "kwh_ev": round(kwh_ev_total_day, 3),
-
         "cost_thb": round(cost_thb, 2),
+
+        # ✅ รายเดือน (แก้ให้ “ประมาณการ/เดือน” ถูกต้อง)
+        "kwh_month_total": round(kwh_month_total, 3),
+        "kwh_month_net": round(kwh_month_net, 3),
+        "kwh_on_month": round(kwh_on_month, 3),
+        "kwh_off_month": round(kwh_off_month, 3),
+        "kwh_solar_used_month": round(kwh_solar_used_month, 3),
+        "cost_month_thb": round(cost_month_thb, 2),
+
         "warnings": warnings[:5],
         "insights": insights[:5],
         "points_earned": int(points),
