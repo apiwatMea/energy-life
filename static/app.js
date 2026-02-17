@@ -1,5 +1,3 @@
-// static/app.js
-
 function $(id) {
   return document.getElementById(id);
 }
@@ -70,11 +68,10 @@ function renderResultBox(result) {
     ? `<div class="muted small mt1">EV รวม: <b>${fmt(result.kwh_ev, 2)}</b> kWh</div>`
     : "";
 
-  // ✅ billing compare line (รายเดือน)
+  // ✅ billing compare line (รายเดือนจริง)
   const bn = result.bill_non_tou?.total;
   const bt = result.bill_tou?.total;
   const reco = result.bill_recommend_text;
-
   const billLine = (bn !== undefined && bt !== undefined)
     ? `<div class="muted small mt1">
          📌 เปรียบเทียบ/เดือน: Non-TOU <b>${fmt(bn,0)}</b> บาท • TOU <b>${fmt(bt,0)}</b> บาท<br/>
@@ -104,11 +101,6 @@ function renderResultBox(result) {
   `;
 }
 
-/**
- * ✅ รองรับ 2 schema:
- * A) result.rooms_enabled + kwh_by_room + kwh_month_by_room + ...
- * B) result.rooms_breakdown
- */
 function renderRoomsSummary(result) {
   const el = $("roomsSummary");
   if (!el) return;
@@ -163,7 +155,7 @@ function renderRoomsSummary(result) {
   if (!roomsEnabled || keysA.length === 0) {
     el.innerHTML = `
       <div class="muted">
-        ยังไม่มีข้อมูลรายห้อง — ไปที่ “ตั้งค่าโครงสร้างบ้าน” เพื่อสร้างห้อง แล้วเข้าหน้า “ตั้งค่าอุปกรณ์แยกตามห้อง”
+        ยังไม่มีข้อมูลรายห้อง — ไปที่ “ตั้งค่าโครงสร้างบ้าน” เพื่อสร้างห้อง
         จากนั้นกด “จำลองไปอีก 1 วัน” อีกครั้ง
       </div>
     `;
@@ -178,7 +170,7 @@ function renderRoomsSummaryFromMaps(el, byRoom, byRoomMonth, evByRoom, evByRoomM
   if (keys.length === 0) {
     el.innerHTML = `
       <div class="muted">
-        ยังไม่มีข้อมูลรายห้อง — ไปที่ “ตั้งค่าโครงสร้างบ้าน” เพื่อสร้างห้อง แล้วเข้าหน้า “ตั้งค่าอุปกรณ์แยกตามห้อง”
+        ยังไม่มีข้อมูลรายห้อง — ไปที่ “ตั้งค่าโครงสร้างบ้าน” เพื่อสร้างห้อง
         จากนั้นกด “จำลองไปอีก 1 วัน” อีกครั้ง
       </div>
     `;
@@ -235,14 +227,13 @@ function renderRoomsSummaryFromMaps(el, byRoom, byRoomMonth, evByRoom, evByRoomM
   `;
 }
 
-// ✅ สรุปย่อ: ใช้บิลจริง (ถ้ามี) ไม่งั้น fallback วันนี้×30
+// ✅ สรุปย่อ: “ประมาณ/เดือน” = ค่าที่แนะนำจาก bill compare (ไม่ใช้วันนี้×30)
 function updateTopStats(result, dayCounter) {
   if ($("statKwhDay")) $("statKwhDay").textContent = `${fmt(result.kwh_total, 2)}`;
   if ($("statCostDay")) $("statCostDay").textContent = `${fmt(result.cost_thb, 0)}`;
 
   const bn = result.bill_non_tou?.total;
   const bt = result.bill_tou?.total;
-  const reco = result.bill_recommend_text || "";
 
   if ($("statCostMonth")) {
     if (bn !== undefined && bt !== undefined) {
@@ -252,14 +243,14 @@ function updateTopStats(result, dayCounter) {
         Math.min(bn, bt);
 
       $("statCostMonth").textContent = `${fmt(recommended, 0)}`;
+
       if ($("statCostMonthHint")) {
+        const reco = result.bill_recommend_text || "";
         $("statCostMonthHint").textContent = `Non-TOU ${fmt(bn,0)} • TOU ${fmt(bt,0)} — ${reco}`;
       }
     } else {
-      // fallback เก่า กันหน้าว่าง
-      const fallbackMonth = toNumber(result.cost_thb, 0) * 30;
-      $("statCostMonth").textContent = `${fmt(fallbackMonth, 0)}`;
-      if ($("statCostMonthHint")) $("statCostMonthHint").textContent = `คำนวณจาก “วันนี้ × 30” (ยังไม่มีบิลจริง)`;
+      $("statCostMonth").textContent = `—`;
+      if ($("statCostMonthHint")) $("statCostMonthHint").textContent = `คำนวณจากผลจำลองล่าสุด`;
     }
   }
 
