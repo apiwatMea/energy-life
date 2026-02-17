@@ -46,7 +46,6 @@ function getBillCompare(result) {
   if (bnA !== undefined && btA !== undefined) {
     const recommend = result?.bill_recommend || "";
     const recommendText = result?.bill_recommend_text || "";
-    // ถ้ามีข้อความแนะนำอยู่แล้ว diff อาจไม่จำเป็น แต่คำนวณให้เลย
     const diffMonth = toNumber(bnA, 0) - toNumber(btA, 0); // + = TOU ถูกกว่า
     return {
       nonTouMonth: toNumber(bnA, 0),
@@ -63,8 +62,11 @@ function getBillCompare(result) {
   const btB = c?.tou_month;
   if (bnB !== undefined && btB !== undefined) {
     const recommend = c?.recommend || "";
-    const diffMonth = c?.diff_month !== undefined ? toNumber(c.diff_month, 0) : (toNumber(bnB, 0) - toNumber(btB, 0));
-    // สร้างข้อความแนะนำแบบสั้น ถ้า backend ไม่ส่งมา
+    const diffMonth =
+      c?.diff_month !== undefined
+        ? toNumber(c.diff_month, 0)
+        : toNumber(bnB, 0) - toNumber(btB, 0);
+
     let recommendText = "";
     if (recommend) {
       const absDiff = Math.abs(diffMonth);
@@ -76,6 +78,7 @@ function getBillCompare(result) {
         recommendText = `แนะนำ: Non-TOU (ประหยัด ~${Math.round(absDiff).toLocaleString()} บาท/เดือน)`;
       }
     }
+
     return {
       nonTouMonth: toNumber(bnB, 0),
       touMonth: toNumber(btB, 0),
@@ -85,8 +88,14 @@ function getBillCompare(result) {
     };
   }
 
-  // ไม่มี compare
   return null;
+}
+
+function getSelectedTariffMode() {
+  // ✅ เอาตามที่ผู้ใช้ “เลือกอยู่ตอนนี้” เพื่อให้การ์ดประมาณ/เดือนไม่สับสน
+  if ($("tariff_mode")) return String($("tariff_mode").value || "").toLowerCase();
+  if ($("statTariff")) return String($("statTariff").textContent || "").toLowerCase();
+  return "non_tou";
 }
 
 async function apiGetState() {
@@ -121,30 +130,41 @@ function renderResultBox(result) {
   const box = $("resultBox");
   if (!box) return;
 
-  const warnings = (result.warnings || []).map(w => `<li>${escapeHtml(w)}</li>`).join("");
-  const insights = (result.insights || []).map(i => `<li>${escapeHtml(i)}</li>`).join("");
+  const warnings = (result.warnings || []).map((w) => `<li>${escapeHtml(w)}</li>`).join("");
+  const insights = (result.insights || []).map((i) => `<li>${escapeHtml(i)}</li>`).join("");
 
-  const touLine = (result.kwh_on !== undefined && result.kwh_off !== undefined)
-    ? `<div class="muted small mt1">TOU Split: On-Peak <b>${fmt(result.kwh_on, 2)}</b> kWh • Off-Peak <b>${fmt(result.kwh_off, 2)}</b> kWh</div>`
-    : "";
+  const touLine =
+    result.kwh_on !== undefined && result.kwh_off !== undefined
+      ? `<div class="muted small mt1">TOU Split: On-Peak <b>${fmt(result.kwh_on, 2)}</b> kWh • Off-Peak <b>${fmt(
+          result.kwh_off,
+          2
+        )}</b> kWh</div>`
+      : "";
 
-  const solarLine = (result.kwh_solar_used !== undefined)
-    ? `<div class="muted small mt1">Solar ใช้ทดแทน: <b>${fmt(result.kwh_solar_used, 2)}</b> kWh</div>`
-    : "";
+  const solarLine =
+    result.kwh_solar_used !== undefined
+      ? `<div class="muted small mt1">Solar ใช้ทดแทน: <b>${fmt(result.kwh_solar_used, 2)}</b> kWh</div>`
+      : "";
 
-  const evLine = (result.kwh_ev !== undefined && toNumber(result.kwh_ev, 0) > 0)
-    ? `<div class="muted small mt1">EV รวม: <b>${fmt(result.kwh_ev, 2)}</b> kWh</div>`
-    : "";
+  const evLine =
+    result.kwh_ev !== undefined && toNumber(result.kwh_ev, 0) > 0
+      ? `<div class="muted small mt1">EV รวม: <b>${fmt(result.kwh_ev, 2)}</b> kWh</div>`
+      : "";
 
   // ✅ billing compare line (รองรับ bill_* และ compare)
   const cmp = getBillCompare(result);
-  const billLine = (cmp && Number.isFinite(cmp.nonTouMonth) && Number.isFinite(cmp.touMonth))
-    ? `<div class="muted small mt1">
-        📌 เปรียบเทียบ/เดือน: Non-TOU <b>${Math.round(cmp.nonTouMonth).toLocaleString()}</b> บาท •
-        TOU <b>${Math.round(cmp.touMonth).toLocaleString()}</b> บาท
-        ${cmp.recommendText ? `<br/><span class="muted small">${escapeHtml(cmp.recommendText)}</span>` : ""}
-      </div>`
-    : "";
+  const billLine =
+    cmp && Number.isFinite(cmp.nonTouMonth) && Number.isFinite(cmp.touMonth)
+      ? `<div class="muted small mt1">
+          📌 เปรียบเทียบ/เดือน: Non-TOU <b>${Math.round(cmp.nonTouMonth).toLocaleString()}</b> บาท •
+          TOU <b>${Math.round(cmp.touMonth).toLocaleString()}</b> บาท
+          ${
+            cmp.recommendText
+              ? `<br/><span class="muted small">${escapeHtml(cmp.recommendText)}</span>`
+              : ""
+          }
+        </div>`
+      : "";
 
   box.innerHTML = `
     <div class="row between">
@@ -177,9 +197,7 @@ function renderRoomsSummary(result) {
   const el = $("roomsSummary");
   if (!el) return;
 
-  const rb = result.rooms_breakdown && typeof result.rooms_breakdown === "object"
-    ? result.rooms_breakdown
-    : null;
+  const rb = result.rooms_breakdown && typeof result.rooms_breakdown === "object" ? result.rooms_breakdown : null;
 
   if (rb && Object.keys(rb).length > 0) {
     const byRoom = {};
@@ -204,14 +222,12 @@ function renderRoomsSummary(result) {
         toNumber(roomObj.kwh_total_month, NaN) ||
         toNumber(roomObj.month_kwh_total, NaN);
 
-      byRoomMonth[rid] = Number.isFinite(kwhMonthFromBackend) ? kwhMonthFromBackend : (kwhDay * 30);
+      byRoomMonth[rid] = Number.isFinite(kwhMonthFromBackend) ? kwhMonthFromBackend : kwhDay * 30;
 
       const evMonthFromBackend =
-        toNumber(roomObj.kwh_ev_month, NaN) ||
-        toNumber(roomObj.ev_kwh_month, NaN) ||
-        toNumber(roomObj.kwh_month_ev, NaN);
+        toNumber(roomObj.kwh_ev_month, NaN) || toNumber(roomObj.ev_kwh_month, NaN) || toNumber(roomObj.kwh_month_ev, NaN);
 
-      evByRoomMonth[rid] = Number.isFinite(evMonthFromBackend) ? evMonthFromBackend : (evDay * 30);
+      evByRoomMonth[rid] = Number.isFinite(evMonthFromBackend) ? evMonthFromBackend : evDay * 30;
     });
 
     return renderRoomsSummaryFromMaps(el, byRoom, byRoomMonth, evByRoom, evByRoomMonth);
@@ -258,22 +274,24 @@ function renderRoomsSummaryFromMaps(el, byRoom, byRoomMonth, evByRoom, evByRoomM
     return s + (Number.isFinite(m) ? m : d * 30);
   }, 0);
 
-  const rows = keys.map((rid) => {
-    const kwhDay = toNumber(byRoom[rid], 0);
-    const monthRaw = toNumber(byRoomMonth[rid], NaN);
-    const kwhMonth = Number.isFinite(monthRaw) ? monthRaw : (kwhDay * 30);
+  const rows = keys
+    .map((rid) => {
+      const kwhDay = toNumber(byRoom[rid], 0);
+      const monthRaw = toNumber(byRoomMonth[rid], NaN);
+      const kwhMonth = Number.isFinite(monthRaw) ? monthRaw : kwhDay * 30;
 
-    const pct = totalDay > 0 ? Math.round((kwhDay / totalDay) * 100) : 0;
+      const pct = totalDay > 0 ? Math.round((kwhDay / totalDay) * 100) : 0;
 
-    const evDay = toNumber(evByRoom?.[rid], 0);
-    const evMonthRaw = toNumber(evByRoomMonth?.[rid], NaN);
-    const evMonth = Number.isFinite(evMonthRaw) ? evMonthRaw : (evDay * 30);
+      const evDay = toNumber(evByRoom?.[rid], 0);
+      const evMonthRaw = toNumber(evByRoomMonth?.[rid], NaN);
+      const evMonth = Number.isFinite(evMonthRaw) ? evMonthRaw : evDay * 30;
 
-    const evBadge = evDay > 0
-      ? `<span class="badge" style="margin-left:6px;">EV ${fmt(evDay, 1)} kWh/วัน • ${fmt(evMonth, 0)} kWh/เดือน</span>`
-      : "";
+      const evBadge =
+        evDay > 0
+          ? `<span class="badge" style="margin-left:6px;">EV ${fmt(evDay, 1)} kWh/วัน • ${fmt(evMonth, 0)} kWh/เดือน</span>`
+          : "";
 
-    return `
+      return `
       <div style="padding:10px 0;border-bottom:1px dashed rgba(255,255,255,.08);">
         <div class="row between">
           <div>
@@ -288,7 +306,8 @@ function renderRoomsSummaryFromMaps(el, byRoom, byRoomMonth, evByRoom, evByRoomM
         </div>
       </div>
     `;
-  }).join("");
+    })
+    .join("");
 
   el.innerHTML = `
     <div class="muted small">
@@ -301,39 +320,35 @@ function renderRoomsSummaryFromMaps(el, byRoom, byRoomMonth, evByRoom, evByRoomM
 
 /**
  * ✅ Top stats:
- * - “ประมาณ/เดือน” ต้องไม่หาย:
- *    1) ถ้ามี compare/bill -> โชว์ค่าที่แนะนำ (ถูกกว่า)
- *    2) ถ้าไม่มี -> ใช้ cost_month_est
- *    3) ถ้ายังไม่มี -> cost_thb * 30
+ * - “ประมาณ/เดือน” = “ตามมิเตอร์ที่เลือกอยู่ตอนนี้” (กันสับสน)
+ *   - เลือก non_tou -> โชว์ Non-TOU/เดือน
+ *   - เลือก tou -> โชว์ TOU/เดือน
+ * - ส่วน compare ยังโชว์ใน “ผลลัพธ์วันนี้” ตามเดิม
  */
 function updateTopStats(result, dayCounter) {
   if ($("statKwhDay")) $("statKwhDay").textContent = `${fmt(result.kwh_total, 2)}`;
   if ($("statCostDay")) $("statCostDay").textContent = `${fmt(result.cost_thb, 0)}`;
 
   const cmp = getBillCompare(result);
+  const selectedMode = getSelectedTariffMode(); // "non_tou" | "tou"
 
   if ($("statCostMonth")) {
     if (cmp && Number.isFinite(cmp.nonTouMonth) && Number.isFinite(cmp.touMonth)) {
-      // โชว์ “อันที่แนะนำ/ถูกกว่า”
-      let recommended = Math.min(cmp.nonTouMonth, cmp.touMonth);
+      // ✅ แสดง “ตามมิเตอร์ที่เลือก” เท่านั้น
+      const monthValue = selectedMode === "tou" ? cmp.touMonth : cmp.nonTouMonth;
 
-      // ถ้า backend ระบุ recommend ชัดเจน ให้ตามนั้น
-      if (String(cmp.recommend).toLowerCase() === "tou") recommended = cmp.touMonth;
-      if (String(cmp.recommend).toLowerCase() === "non-tou" || String(cmp.recommend).toLowerCase() === "non_tou" || String(cmp.recommend).toLowerCase() === "non tou") {
-        recommended = cmp.nonTouMonth;
-      }
+      $("statCostMonth").textContent = `${Math.round(monthValue).toLocaleString()}`;
 
-      $("statCostMonth").textContent = `${Math.round(recommended).toLocaleString()}`;
-      // hint อาจไม่มีใน HTML ก็ไม่เป็นไร
       if ($("statCostMonthHint")) {
-        const hint = `Non-TOU ${Math.round(cmp.nonTouMonth).toLocaleString()} • TOU ${Math.round(cmp.touMonth).toLocaleString()}${cmp.recommendText ? ` — ${cmp.recommendText}` : ""}`;
+        const hint = `Non-TOU ${Math.round(cmp.nonTouMonth).toLocaleString()} • TOU ${Math.round(cmp.touMonth).toLocaleString()}${
+          cmp.recommendText ? ` — ${cmp.recommendText}` : ""
+        }`;
         $("statCostMonthHint").textContent = hint;
       }
     } else {
       // fallback: cost_month_est หรือ today*30
-      const m = (result.cost_month_est !== undefined)
-        ? toNumber(result.cost_month_est, NaN)
-        : toNumber(result.cost_thb, 0) * 30;
+      const m =
+        result.cost_month_est !== undefined ? toNumber(result.cost_month_est, NaN) : toNumber(result.cost_thb, 0) * 30;
 
       $("statCostMonth").textContent = Number.isFinite(m) ? `${Math.round(m).toLocaleString()}` : `—`;
       if ($("statCostMonthHint")) $("statCostMonthHint").textContent = `คำนวณจาก “วันนี้ × 30”`;
