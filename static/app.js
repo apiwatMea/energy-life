@@ -23,6 +23,72 @@ function escapeHtml(str) {
     .replaceAll("'", "&#039;");
 }
 
+/**
+ * ✅ รองรับผล compare ได้ 2 schema
+ * A) bill_* (ของเดิม)
+ *   - bill_non_tou.total, bill_tou.total
+ *   - bill_recommend, bill_recommend_text
+ * B) compare (ของใหม่ที่แนะนำ)
+ *   - compare.non_tou_month, compare.tou_month
+ *   - compare.recommend, compare.diff_month
+ *
+ * คืนค่า:
+ * {
+ *   nonTouMonth, touMonth,
+ *   recommend, recommendText,
+ *   diffMonth
+ * }
+ */
+function getBillCompare(result) {
+  // --- schema A: bill_* ---
+  const bnA = result?.bill_non_tou?.total;
+  const btA = result?.bill_tou?.total;
+  if (bnA !== undefined && btA !== undefined) {
+    const recommend = result?.bill_recommend || "";
+    const recommendText = result?.bill_recommend_text || "";
+    // ถ้ามีข้อความแนะนำอยู่แล้ว diff อาจไม่จำเป็น แต่คำนวณให้เลย
+    const diffMonth = toNumber(bnA, 0) - toNumber(btA, 0); // + = TOU ถูกกว่า
+    return {
+      nonTouMonth: toNumber(bnA, 0),
+      touMonth: toNumber(btA, 0),
+      recommend,
+      recommendText,
+      diffMonth,
+    };
+  }
+
+  // --- schema B: compare ---
+  const c = result?.compare;
+  const bnB = c?.non_tou_month;
+  const btB = c?.tou_month;
+  if (bnB !== undefined && btB !== undefined) {
+    const recommend = c?.recommend || "";
+    const diffMonth = c?.diff_month !== undefined ? toNumber(c.diff_month, 0) : (toNumber(bnB, 0) - toNumber(btB, 0));
+    // สร้างข้อความแนะนำแบบสั้น ถ้า backend ไม่ส่งมา
+    let recommendText = "";
+    if (recommend) {
+      const absDiff = Math.abs(diffMonth);
+      if (absDiff < 0.01) {
+        recommendText = `ค่าใกล้เคียงกัน — แนะนำ: ${recommend}`;
+      } else if (diffMonth > 0) {
+        recommendText = `แนะนำ: TOU (ประหยัด ~${Math.round(absDiff).toLocaleString()} บาท/เดือน)`;
+      } else {
+        recommendText = `แนะนำ: Non-TOU (ประหยัด ~${Math.round(absDiff).toLocaleString()} บาท/เดือน)`;
+      }
+    }
+    return {
+      nonTouMonth: toNumber(bnB, 0),
+      touMonth: toNumber(btB, 0),
+      recommend,
+      recommendText,
+      diffMonth,
+    };
+  }
+
+  // ไม่มี compare
+  return null;
+}
+
 async function apiGetState() {
   const res = await fetch("/api/state", { credentials: "same-origin" });
   if (!res.ok) throw new Error("โหลด state ไม่สำเร็จ");
@@ -51,138 +117,6 @@ async function apiSimulateDay() {
   return res.json();
 }
 
-/* =========================
- * ✅ NEW: โชว์ “สรุปโครงสร้างบ้านที่บันทึกแล้ว” เหมือนรูปที่ 3
- * ========================= */
-function renderHouseStructure(current) {
-  const box = $("houseStructureBox");
-  if (!box) return;
-
-  const state = current?.state || {};
-  const profile = current?.profile || {};
-
-  // house type (พยายามอ่านหลายคีย์ เผื่อ backend ใช้ชื่อไม่เหมือนกัน)
-  const houseType =
-    state.house_type ||
-    state.houseType ||
-    state.house?.type ||
-    state.house_setup?.house_type ||
-    profile.house_type ||
-    "—";
-
-  // room counts
-  const counts =
-    state.room_counts ||
-    state.rooms_count ||
-    state.house_setup?.counts ||
-    state.house?.counts ||
-    null;
-
-  // rooms list
-  let rooms =
-    state.rooms ||
-    state.rooms_list ||
-    state.house_rooms ||
-    state.house_setup?.rooms ||
-    null;
-
-  // normalize rooms -> array of room objects {id,type,name,saved?}
-  let roomArr = [];
-
-  if (Array.isArray(rooms)) {
-    roomArr = rooms.map((r) => {
-      if (typeof r === "string") return { id: r };
-      return r || {};
-    });
-  } else if (rooms && typeof rooms === "object") {
-    // could be dict keyed by room_id
-    roomArr = Object.keys(rooms).map((rid) => {
-      const r = rooms[rid];
-      if (typeof r === "object") return { id: rid, ...(r || {}) };
-      return { id: rid };
-    });
-  }
-
-  // fallback: ถ้ามี counts แต่ไม่มี rooms list -> สร้างจาก pattern เบื้องต้น (bedroom_1 ฯลฯ)
-  if (roomArr.length === 0 && counts && typeof counts === "object") {
-    const pushN = (prefix, n) => {
-      const N = toNumber(n, 0);
-      for (let i = 1; i <= N; i++) roomArr.push({ id: `${prefix}_${i}`, type: prefix });
-    };
-    pushN("bedroom", counts.bedroom);
-    pushN("bathroom", counts.bathroom);
-    pushN("living", counts.living);
-    pushN("kitchen", counts.kitchen);
-    pushN("work", counts.work);
-    pushN("parking", counts.parking);
-  }
-
-  const hasAny = houseType !== "—" && (counts || roomArr.length > 0);
-
-  if (!hasAny) {
-    box.innerHTML = `<div class="muted">ยังไม่มีข้อมูลโครงสร้างบ้าน — กด “ตั้งค่าโครงสร้างบ้าน” เพื่อสร้างห้อง</div>`;
-    return;
-  }
-
-  // helper: ตรวจว่า “ห้องนี้มีการบันทึกอุปกรณ์แล้ว” หรือไม่ (อ่านหลายคีย์ เผื่อ backend ต่างกัน)
-  const roomDetailMaps = [
-    state.rooms_detail,
-    state.room_details,
-    state.rooms_config,
-    state.room_configs,
-    state.appliances_by_room,
-    state.room_appliances,
-  ].filter(Boolean);
-
-  function isRoomSaved(rid, roomObj) {
-    if (roomObj?.saved === true || roomObj?.is_saved === true || roomObj?.configured === true) return true;
-    for (const m of roomDetailMaps) {
-      if (m && typeof m === "object" && m[rid]) return true;
-    }
-    return false;
-  }
-
-  // text counts line (ถ้ามี counts)
-  const countLine = counts && typeof counts === "object"
-    ? `จำนวนห้อง: bedroom ${toNumber(counts.bedroom,0)} • bathroom ${toNumber(counts.bathroom,0)} • living ${toNumber(counts.living,0)} • kitchen ${toNumber(counts.kitchen,0)} • work ${toNumber(counts.work,0)} • parking ${toNumber(counts.parking,0)}`
-    : "";
-
-  // edit url template
-  const tpl = box.getAttribute("data-room-edit-url-template") || "/room/ROOM_ID";
-  const editUrl = (rid) => tpl.replace("ROOM_ID", encodeURIComponent(rid));
-
-  // rows
-  const rows = roomArr.map((r) => {
-    const rid = r.id || r.room_id || r.roomId || "unknown";
-    const rtype = r.type || r.room_type || r.roomType || "";
-    const saved = isRoomSaved(rid, r);
-
-    const statusIcon = saved ? "✅" : "🟡";
-    const statusText = saved ? "บันทึกแล้ว" : "ยังไม่บันทึก";
-
-    return `
-      <div style="padding:10px 0;border-bottom:1px dashed rgba(255,255,255,.08);">
-        <div class="row between">
-          <div>
-            <div class="mini-title">${escapeHtml(rid)}</div>
-            <div class="muted small">room_id: ${escapeHtml(rid)}${rtype ? ` • type: ${escapeHtml(rtype)}` : ""}</div>
-            <div class="big" style="font-size:18px;margin-top:4px;">${statusIcon} ${escapeHtml(statusText)}</div>
-          </div>
-          <a class="btn" href="${editUrl(rid)}">แก้ไขห้องนี้</a>
-        </div>
-      </div>
-    `;
-  }).join("");
-
-  box.innerHTML = `
-    <div class="mini-title">📌 สรุปโครงสร้างบ้านที่บันทึกแล้ว</div>
-    <div class="muted small">ประเภทบ้าน: <b>${escapeHtml(houseType)}</b></div>
-    ${countLine ? `<div class="muted small">จำนวนห้อง: ${escapeHtml(countLine.replace("จำนวนห้อง: ",""))}</div>` : ""}
-    <div class="divider" style="margin:12px 0;"></div>
-    ${rows || `<div class="muted">ยังไม่มีรายการห้อง (ลองกดบันทึกและสร้างห้องอีกครั้ง)</div>`}
-  `;
-}
-
 function renderResultBox(result) {
   const box = $("resultBox");
   if (!box) return;
@@ -202,13 +136,14 @@ function renderResultBox(result) {
     ? `<div class="muted small mt1">EV รวม: <b>${fmt(result.kwh_ev, 2)}</b> kWh</div>`
     : "";
 
-  const bn = result.bill_non_tou?.total;
-  const bt = result.bill_tou?.total;
-  const reco = result.bill_recommend_text;
-
-  const billLine = (bn !== undefined && bt !== undefined)
-    ? `<div class="muted small mt1">📌 เปรียบเทียบ/เดือน: Non-TOU <b>${fmt(bn,0)}</b> บาท • TOU <b>${fmt(bt,0)}</b> บาท<br/>
-       <span class="muted small">${escapeHtml(reco || "")}</span></div>`
+  // ✅ billing compare line (รองรับ bill_* และ compare)
+  const cmp = getBillCompare(result);
+  const billLine = (cmp && Number.isFinite(cmp.nonTouMonth) && Number.isFinite(cmp.touMonth))
+    ? `<div class="muted small mt1">
+        📌 เปรียบเทียบ/เดือน: Non-TOU <b>${Math.round(cmp.nonTouMonth).toLocaleString()}</b> บาท •
+        TOU <b>${Math.round(cmp.touMonth).toLocaleString()}</b> บาท
+        ${cmp.recommendText ? `<br/><span class="muted small">${escapeHtml(cmp.recommendText)}</span>` : ""}
+      </div>`
     : "";
 
   box.innerHTML = `
@@ -234,9 +169,9 @@ function renderResultBox(result) {
 }
 
 /**
- * รองรับ 2 schema:
+ * ✅ รองรับ 2 schema:
  * A) result.rooms_enabled + kwh_by_room + kwh_month_by_room + ...
- * B) result.rooms_breakdown
+ * B) result.rooms_breakdown (จาก app.py compute_daily_energy)
  */
 function renderRoomsSummary(result) {
   const el = $("roomsSummary");
@@ -252,7 +187,9 @@ function renderRoomsSummary(result) {
     const evByRoom = {};
     const evByRoomMonth = {};
 
-    Object.keys(rb).forEach((rid) => {
+    const keys = Object.keys(rb);
+
+    keys.forEach((rid) => {
       const roomObj = rb[rid] || {};
       const kwhDay = toNumber(roomObj.kwh_total, 0);
 
@@ -290,7 +227,8 @@ function renderRoomsSummary(result) {
   if (!roomsEnabled || keysA.length === 0) {
     el.innerHTML = `
       <div class="muted">
-        ยังไม่มีข้อมูลรายห้อง — ไปที่ “ตั้งค่าโครงสร้างบ้าน” เพื่อสร้างห้อง แล้วกด “จำลองไปอีก 1 วัน” อีกครั้ง
+        ยังไม่มีข้อมูลรายห้อง — ไปที่ “ตั้งค่าโครงสร้างบ้าน” เพื่อสร้างห้อง
+        จากนั้นกด “จำลองไปอีก 1 วัน” อีกครั้ง
       </div>
     `;
     return;
@@ -304,7 +242,8 @@ function renderRoomsSummaryFromMaps(el, byRoom, byRoomMonth, evByRoom, evByRoomM
   if (keys.length === 0) {
     el.innerHTML = `
       <div class="muted">
-        ยังไม่มีข้อมูลรายห้อง — ไปที่ “ตั้งค่าโครงสร้างบ้าน” เพื่อสร้างห้อง แล้วกด “จำลองไปอีก 1 วัน” อีกครั้ง
+        ยังไม่มีข้อมูลรายห้อง — ไปที่ “ตั้งค่าโครงสร้างบ้าน” เพื่อสร้างห้อง
+        จากนั้นกด “จำลองไปอีก 1 วัน” อีกครั้ง
       </div>
     `;
     return;
@@ -360,27 +299,44 @@ function renderRoomsSummaryFromMaps(el, byRoom, byRoomMonth, evByRoom, evByRoomM
   `;
 }
 
+/**
+ * ✅ Top stats:
+ * - “ประมาณ/เดือน” ต้องไม่หาย:
+ *    1) ถ้ามี compare/bill -> โชว์ค่าที่แนะนำ (ถูกกว่า)
+ *    2) ถ้าไม่มี -> ใช้ cost_month_est
+ *    3) ถ้ายังไม่มี -> cost_thb * 30
+ */
 function updateTopStats(result, dayCounter) {
   if ($("statKwhDay")) $("statKwhDay").textContent = `${fmt(result.kwh_total, 2)}`;
   if ($("statCostDay")) $("statCostDay").textContent = `${fmt(result.cost_thb, 0)}`;
 
-  const bn = result.bill_non_tou?.total;
-  const bt = result.bill_tou?.total;
-  const reco = result.bill_recommend_text || "";
+  const cmp = getBillCompare(result);
 
   if ($("statCostMonth")) {
-    if (bn !== undefined && bt !== undefined) {
-      const recommended = (result.bill_recommend === "TOU") ? bt
-        : (result.bill_recommend === "Non-TOU") ? bn
-        : Math.min(bn, bt);
+    if (cmp && Number.isFinite(cmp.nonTouMonth) && Number.isFinite(cmp.touMonth)) {
+      // โชว์ “อันที่แนะนำ/ถูกกว่า”
+      let recommended = Math.min(cmp.nonTouMonth, cmp.touMonth);
 
-      $("statCostMonth").textContent = `${fmt(recommended, 0)}`;
+      // ถ้า backend ระบุ recommend ชัดเจน ให้ตามนั้น
+      if (String(cmp.recommend).toLowerCase() === "tou") recommended = cmp.touMonth;
+      if (String(cmp.recommend).toLowerCase() === "non-tou" || String(cmp.recommend).toLowerCase() === "non_tou" || String(cmp.recommend).toLowerCase() === "non tou") {
+        recommended = cmp.nonTouMonth;
+      }
+
+      $("statCostMonth").textContent = `${Math.round(recommended).toLocaleString()}`;
+      // hint อาจไม่มีใน HTML ก็ไม่เป็นไร
       if ($("statCostMonthHint")) {
-        $("statCostMonthHint").textContent = `Non-TOU ${fmt(bn,0)} • TOU ${fmt(bt,0)} — ${reco}`;
+        const hint = `Non-TOU ${Math.round(cmp.nonTouMonth).toLocaleString()} • TOU ${Math.round(cmp.touMonth).toLocaleString()}${cmp.recommendText ? ` — ${cmp.recommendText}` : ""}`;
+        $("statCostMonthHint").textContent = hint;
       }
     } else {
-      $("statCostMonth").textContent = `—`;
-      if ($("statCostMonthHint")) $("statCostMonthHint").textContent = `คำนวณจากผลจำลองล่าสุด`;
+      // fallback: cost_month_est หรือ today*30
+      const m = (result.cost_month_est !== undefined)
+        ? toNumber(result.cost_month_est, NaN)
+        : toNumber(result.cost_thb, 0) * 30;
+
+      $("statCostMonth").textContent = Number.isFinite(m) ? `${Math.round(m).toLocaleString()}` : `—`;
+      if ($("statCostMonthHint")) $("statCostMonthHint").textContent = `คำนวณจาก “วันนี้ × 30”`;
     }
   }
 
@@ -401,9 +357,6 @@ function collectPayloadFromUI(currentState) {
 async function main() {
   let current = await apiGetState();
 
-  // ✅ render โครงสร้างบ้านทันทีตอนโหลดหน้า (แก้เคส “กลับมาหน้า Home แล้วหาย”)
-  renderHouseStructure(current);
-
   const saveBtn = $("saveBtn");
   const simBtn = $("simBtn");
 
@@ -417,9 +370,6 @@ async function main() {
 
         if ($("statTariff")) $("statTariff").textContent = current.state.tariff_mode;
         if ($("statSolar")) $("statSolar").textContent = String(current.state.solar_kw);
-
-        // ✅ render โครงสร้างบ้านใหม่หลังบันทึก
-        renderHouseStructure(current);
 
         alert("บันทึกแล้ว ✅");
       } catch (err) {
@@ -439,10 +389,6 @@ async function main() {
         updateTopStats(result, data.day_counter);
         renderResultBox(result);
         renderRoomsSummary(result);
-
-        // ✅ เผื่อบางระบบ update state ระหว่าง simulate
-        current = await apiGetState();
-        renderHouseStructure(current);
       } catch (err) {
         console.error(err);
         alert("จำลองไม่สำเร็จ ❌");
