@@ -68,25 +68,89 @@
 
       <div class="divider"></div>
 
-      <!-- ✅ โครงสร้างบ้าน + สรุปสถานะห้อง (ให้เหมือนรูปที่ 3) -->
-      <h3>โครงสร้างบ้าน</h3>
+      <h3>ตั้งค่าแยกตามห้อง</h3>
       <div class="muted small">
-        (ถ้าระบบแยกห้องทำให้ทั้งบ้าน สร้างอัตโนมัติได้เลย)
+        ตั้งค่าห้อง (Bedroom/Bathroom/Kitchen/Parking ฯลฯ) และอุปกรณ์ในแต่ละห้องได้ที่นี่
       </div>
 
       <div class="row gap mt2">
         <a class="btn primary" href="{{ url_for('house_setup') }}">🏠 ตั้งค่าโครงสร้างบ้าน</a>
+        <a class="btn" href="{{ url_for('rooms_setup') }}">🧩 ตั้งค่าอุปกรณ์แยกตามห้อง</a>
       </div>
 
-      <!-- ✅ กล่องสรุปโครงสร้างบ้านที่บันทึกแล้ว (เรนเดอร์ด้วย JS จาก /api/state) -->
-      <div class="panel mt2" id="houseStructureBox"
-           data-room-edit-url-template="{{ url_for('room_detail', room_id='ROOM_ID') if 'room_detail' in globals() else '/room/ROOM_ID' }}">
-        <div class="muted">ยังไม่มีข้อมูลโครงสร้างบ้าน — กด “ตั้งค่าโครงสร้างบ้าน” เพื่อสร้างห้อง</div>
-      </div>
+      <!-- ✅ NEW: สรุปโครงสร้าง + สถานะแต่ละห้อง -->
+      <div class="divider"></div>
+
+      <h3>📌 สรุปโครงสร้างบ้านที่บันทึกแล้ว</h3>
+
+      {% set layout = state.house_layout if state.house_layout else {} %}
+      {% set layout_rooms = layout.rooms if layout.rooms else {} %}
+      {% set rooms = state.rooms if state.rooms else {} %}
+
+      {% if layout.enabled and rooms and rooms|length > 0 %}
+        <div class="panel">
+          <div class="muted small">
+            ประเภทบ้าน: <b>{{ layout.house_type }}</b><br/>
+            จำนวนห้อง: 
+            bedroom <b>{{ layout_rooms.bedroom }}</b> •
+            bathroom <b>{{ layout_rooms.bathroom }}</b> •
+            living <b>{{ layout_rooms.living }}</b> •
+            kitchen <b>{{ layout_rooms.kitchen }}</b> •
+            work <b>{{ layout_rooms.work }}</b> •
+            parking <b>{{ layout_rooms.parking }}</b>
+          </div>
+
+          <div class="divider"></div>
+
+          {% set total_rooms = rooms|length %}
+          {% set done = 0 %}
+          {% for rid, room in rooms.items() %}
+            {% if room.configured %}
+              {% set done = done + 1 %}
+            {% endif %}
+          {% endfor %}
+
+          <div class="muted small">
+            สรุป: บันทึกแล้ว <b>{{ done }}</b> / <b>{{ total_rooms }}</b> ห้อง
+            • เหลืออีก <b>{{ (total_rooms - done) if total_rooms >= done else 0 }}</b> ห้องที่ยังไม่บันทึก
+          </div>
+
+          <div class="mt1">
+            {% for rid, room in rooms.items() %}
+              <div style="padding:10px 0;border-bottom:1px dashed rgba(255,255,255,.08);">
+                <div class="row between">
+                  <div>
+                    <div class="mini-title">{{ (room.label if room.label else rid) }}</div>
+                    <div class="muted small">room_id: {{ rid }} • type: {{ room.type }}</div>
+                    {% if room.configured %}
+                      <div class="muted small" style="margin-top:4px;">
+                        <span class="badge">✅ บันทึกแล้ว</span>
+                      </div>
+                    {% else %}
+                      <div class="muted small" style="margin-top:4px;">
+                        <span class="badge">🟡 ยังไม่บันทึก</span>
+                      </div>
+                    {% endif %}
+                  </div>
+                  <div>
+                    <a class="btn" href="{{ url_for('room_detail', rid=rid) }}">แก้ไขห้องนี้</a>
+                  </div>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      {% else %}
+        <div class="panel">
+          <div class="muted">
+            ยังไม่มีโครงสร้างบ้าน — กด “ตั้งค่าโครงสร้างบ้าน” เพื่อเริ่มต้น
+          </div>
+        </div>
+      {% endif %}
 
       <div class="divider"></div>
 
-      <!-- ปุ่มใช้งาน -->
+      <!-- ✅ ปุ่มใช้งานจริง -->
       <div class="row gap mt2">
         <button class="btn" id="saveBtn" type="button">💾 บันทึกการตั้งค่า</button>
         <button class="btn primary" id="simBtn" type="button">▶ จำลองไปอีก 1 วัน</button>
@@ -111,7 +175,7 @@
         <div class="mini">
           <div class="mini-title">📅 ประมาณ/เดือน</div>
           <div class="big" id="statCostMonth">—</div>
-          <div class="muted small" id="statCostMonthHint">คำนวณจากผลจำลองล่าสุด</div>
+          <div class="muted small">คำนวณจาก “วันนี้ × 30”</div>
         </div>
       </div>
 
