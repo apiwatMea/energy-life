@@ -23,72 +23,6 @@ function escapeHtml(str) {
     .replaceAll("'", "&#039;");
 }
 
-/**
- * ✅ รองรับผล compare ได้ 2 schema
- * A) bill_* (ของเดิม)
- *   - bill_non_tou.total, bill_tou.total
- *   - bill_recommend, bill_recommend_text
- * B) compare (ของใหม่ที่แนะนำ)
- *   - compare.non_tou_month, compare.tou_month
- *   - compare.recommend, compare.diff_month
- *
- * คืนค่า:
- * {
- *   nonTouMonth, touMonth,
- *   recommend, recommendText,
- *   diffMonth
- * }
- */
-function getBillCompare(result) {
-  // --- schema A: bill_* ---
-  const bnA = result?.bill_non_tou?.total;
-  const btA = result?.bill_tou?.total;
-  if (bnA !== undefined && btA !== undefined) {
-    const recommend = result?.bill_recommend || "";
-    const recommendText = result?.bill_recommend_text || "";
-    // ถ้ามีข้อความแนะนำอยู่แล้ว diff อาจไม่จำเป็น แต่คำนวณให้เลย
-    const diffMonth = toNumber(bnA, 0) - toNumber(btA, 0); // + = TOU ถูกกว่า
-    return {
-      nonTouMonth: toNumber(bnA, 0),
-      touMonth: toNumber(btA, 0),
-      recommend,
-      recommendText,
-      diffMonth,
-    };
-  }
-
-  // --- schema B: compare ---
-  const c = result?.compare;
-  const bnB = c?.non_tou_month;
-  const btB = c?.tou_month;
-  if (bnB !== undefined && btB !== undefined) {
-    const recommend = c?.recommend || "";
-    const diffMonth = c?.diff_month !== undefined ? toNumber(c.diff_month, 0) : (toNumber(bnB, 0) - toNumber(btB, 0));
-    // สร้างข้อความแนะนำแบบสั้น ถ้า backend ไม่ส่งมา
-    let recommendText = "";
-    if (recommend) {
-      const absDiff = Math.abs(diffMonth);
-      if (absDiff < 0.01) {
-        recommendText = `ค่าใกล้เคียงกัน — แนะนำ: ${recommend}`;
-      } else if (diffMonth > 0) {
-        recommendText = `แนะนำ: TOU (ประหยัด ~${Math.round(absDiff).toLocaleString()} บาท/เดือน)`;
-      } else {
-        recommendText = `แนะนำ: Non-TOU (ประหยัด ~${Math.round(absDiff).toLocaleString()} บาท/เดือน)`;
-      }
-    }
-    return {
-      nonTouMonth: toNumber(bnB, 0),
-      touMonth: toNumber(btB, 0),
-      recommend,
-      recommendText,
-      diffMonth,
-    };
-  }
-
-  // ไม่มี compare
-  return null;
-}
-
 async function apiGetState() {
   const res = await fetch("/api/state", { credentials: "same-origin" });
   if (!res.ok) throw new Error("โหลด state ไม่สำเร็จ");
@@ -136,14 +70,16 @@ function renderResultBox(result) {
     ? `<div class="muted small mt1">EV รวม: <b>${fmt(result.kwh_ev, 2)}</b> kWh</div>`
     : "";
 
-  // ✅ billing compare line (รองรับ bill_* และ compare)
-  const cmp = getBillCompare(result);
-  const billLine = (cmp && Number.isFinite(cmp.nonTouMonth) && Number.isFinite(cmp.touMonth))
+  // ✅ billing compare line (รายเดือน)
+  const bn = result.bill_non_tou?.total;
+  const bt = result.bill_tou?.total;
+  const reco = result.bill_recommend_text;
+
+  const billLine = (bn !== undefined && bt !== undefined)
     ? `<div class="muted small mt1">
-        📌 เปรียบเทียบ/เดือน: Non-TOU <b>${Math.round(cmp.nonTouMonth).toLocaleString()}</b> บาท •
-        TOU <b>${Math.round(cmp.touMonth).toLocaleString()}</b> บาท
-        ${cmp.recommendText ? `<br/><span class="muted small">${escapeHtml(cmp.recommendText)}</span>` : ""}
-      </div>`
+         📌 เปรียบเทียบ/เดือน: Non-TOU <b>${fmt(bn,0)}</b> บาท • TOU <b>${fmt(bt,0)}</b> บาท<br/>
+         <span class="muted small">${escapeHtml(reco || "")}</span>
+       </div>`
     : "";
 
   box.innerHTML = `
@@ -171,7 +107,7 @@ function renderResultBox(result) {
 /**
  * ✅ รองรับ 2 schema:
  * A) result.rooms_enabled + kwh_by_room + kwh_month_by_room + ...
- * B) result.rooms_breakdown (จาก app.py compute_daily_energy)
+ * B) result.rooms_breakdown
  */
 function renderRoomsSummary(result) {
   const el = $("roomsSummary");
@@ -227,7 +163,7 @@ function renderRoomsSummary(result) {
   if (!roomsEnabled || keysA.length === 0) {
     el.innerHTML = `
       <div class="muted">
-        ยังไม่มีข้อมูลรายห้อง — ไปที่ “ตั้งค่าโครงสร้างบ้าน” เพื่อสร้างห้อง
+        ยังไม่มีข้อมูลรายห้อง — ไปที่ “ตั้งค่าโครงสร้างบ้าน” เพื่อสร้างห้อง แล้วเข้าหน้า “ตั้งค่าอุปกรณ์แยกตามห้อง”
         จากนั้นกด “จำลองไปอีก 1 วัน” อีกครั้ง
       </div>
     `;
@@ -242,7 +178,7 @@ function renderRoomsSummaryFromMaps(el, byRoom, byRoomMonth, evByRoom, evByRoomM
   if (keys.length === 0) {
     el.innerHTML = `
       <div class="muted">
-        ยังไม่มีข้อมูลรายห้อง — ไปที่ “ตั้งค่าโครงสร้างบ้าน” เพื่อสร้างห้อง
+        ยังไม่มีข้อมูลรายห้อง — ไปที่ “ตั้งค่าโครงสร้างบ้าน” เพื่อสร้างห้อง แล้วเข้าหน้า “ตั้งค่าอุปกรณ์แยกตามห้อง”
         จากนั้นกด “จำลองไปอีก 1 วัน” อีกครั้ง
       </div>
     `;
@@ -299,44 +235,31 @@ function renderRoomsSummaryFromMaps(el, byRoom, byRoomMonth, evByRoom, evByRoomM
   `;
 }
 
-/**
- * ✅ Top stats:
- * - “ประมาณ/เดือน” ต้องไม่หาย:
- *    1) ถ้ามี compare/bill -> โชว์ค่าที่แนะนำ (ถูกกว่า)
- *    2) ถ้าไม่มี -> ใช้ cost_month_est
- *    3) ถ้ายังไม่มี -> cost_thb * 30
- */
+// ✅ สรุปย่อ: ใช้บิลจริง (ถ้ามี) ไม่งั้น fallback วันนี้×30
 function updateTopStats(result, dayCounter) {
   if ($("statKwhDay")) $("statKwhDay").textContent = `${fmt(result.kwh_total, 2)}`;
   if ($("statCostDay")) $("statCostDay").textContent = `${fmt(result.cost_thb, 0)}`;
 
-  const cmp = getBillCompare(result);
+  const bn = result.bill_non_tou?.total;
+  const bt = result.bill_tou?.total;
+  const reco = result.bill_recommend_text || "";
 
   if ($("statCostMonth")) {
-    if (cmp && Number.isFinite(cmp.nonTouMonth) && Number.isFinite(cmp.touMonth)) {
-      // โชว์ “อันที่แนะนำ/ถูกกว่า”
-      let recommended = Math.min(cmp.nonTouMonth, cmp.touMonth);
+    if (bn !== undefined && bt !== undefined) {
+      const recommended =
+        (result.bill_recommend === "TOU") ? bt :
+        (result.bill_recommend === "Non-TOU") ? bn :
+        Math.min(bn, bt);
 
-      // ถ้า backend ระบุ recommend ชัดเจน ให้ตามนั้น
-      if (String(cmp.recommend).toLowerCase() === "tou") recommended = cmp.touMonth;
-      if (String(cmp.recommend).toLowerCase() === "non-tou" || String(cmp.recommend).toLowerCase() === "non_tou" || String(cmp.recommend).toLowerCase() === "non tou") {
-        recommended = cmp.nonTouMonth;
-      }
-
-      $("statCostMonth").textContent = `${Math.round(recommended).toLocaleString()}`;
-      // hint อาจไม่มีใน HTML ก็ไม่เป็นไร
+      $("statCostMonth").textContent = `${fmt(recommended, 0)}`;
       if ($("statCostMonthHint")) {
-        const hint = `Non-TOU ${Math.round(cmp.nonTouMonth).toLocaleString()} • TOU ${Math.round(cmp.touMonth).toLocaleString()}${cmp.recommendText ? ` — ${cmp.recommendText}` : ""}`;
-        $("statCostMonthHint").textContent = hint;
+        $("statCostMonthHint").textContent = `Non-TOU ${fmt(bn,0)} • TOU ${fmt(bt,0)} — ${reco}`;
       }
     } else {
-      // fallback: cost_month_est หรือ today*30
-      const m = (result.cost_month_est !== undefined)
-        ? toNumber(result.cost_month_est, NaN)
-        : toNumber(result.cost_thb, 0) * 30;
-
-      $("statCostMonth").textContent = Number.isFinite(m) ? `${Math.round(m).toLocaleString()}` : `—`;
-      if ($("statCostMonthHint")) $("statCostMonthHint").textContent = `คำนวณจาก “วันนี้ × 30”`;
+      // fallback เก่า กันหน้าว่าง
+      const fallbackMonth = toNumber(result.cost_thb, 0) * 30;
+      $("statCostMonth").textContent = `${fmt(fallbackMonth, 0)}`;
+      if ($("statCostMonthHint")) $("statCostMonthHint").textContent = `คำนวณจาก “วันนี้ × 30” (ยังไม่มีบิลจริง)`;
     }
   }
 
