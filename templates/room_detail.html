@@ -1,199 +1,43 @@
-<!doctype html>
-<html lang="th">
-<head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>ตั้งค่าอุปกรณ์ • {{ room_id }} • {{ app_name }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"/>
-</head>
+/* =========================
+   Room Detail Toggle (Big)
+   ========================= */
 
-<body class="bg">
-<div class="shell">
+.toggleline{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  white-space:nowrap;          /* ✅ บรรทัดเดียว */
+  flex-wrap:nowrap;
+}
 
-  <header class="top bar">
-    <div class="row gap">
-      <a class="btn" href="{{ url_for('rooms_setup') }}">← กลับไปหน้าห้อง</a>
-      <div>
-        <div class="title">🧩 ตั้งค่าอุปกรณ์รายห้อง</div>
-        <div class="subtitle">
-          ห้อง: <strong>{{ room_id }}</strong> ({{ room.type }})
-        </div>
-      </div>
-    </div>
-  </header>
+.toggletext{
+  font-weight:800;
+  color:var(--muted);
+  line-height:1;
+}
 
-  <main class="card">
+/* ✅ ขยายสวิตช์ */
+.switch.big{
+  width:66px;
+  height:36px;
+}
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        <div class="mt">
-        {% for cat,msg in messages %}
-          <div class="toast {{cat}}">{{ msg }}</div>
-        {% endfor %}
-        </div>
-      {% endif %}
-    {% endwith %}
+.switch.big .slider{
+  border-radius:999px;
+}
 
-    <form method="post" class="form mt">
+.switch.big .slider:before{
+  height:28px;
+  width:28px;
+  left:4px;
+  bottom:3px;
+}
 
-      {% for key, cfg in room.appliances.items() %}
-        {% set c = catalog.get(key) %}
+.switch.big input:checked + .slider:before{
+  transform: translateX(30px);
+}
 
-        <div class="mini mt">
-
-          <div class="row gap" style="justify-content:space-between;align-items:center;">
-            <div>
-              <div class="mini-title">
-                {{ c.icon if c else "🔧" }}
-                {{ c.name if c else key }}
-              </div>
-              <div class="muted small">
-                key: {{ key }} | type: {{ c.type if c else "-" }}
-              </div>
-            </div>
-          </div>
-
-          <div class="mt2">
-            <div class="badge">① เปิดใช้งาน</div>
-            <label class="row gap mt1" style="align-items:center;">
-              <input type="checkbox" name="{{ key }}__enabled" {% if cfg.enabled %}checked{% endif %}>
-              <span class="muted">เปิดอุปกรณ์นี้ในห้อง</span>
-            </label>
-          </div>
-
-          <div class="mt2">
-            <div class="badge">② ตั้งค่าการใช้ไฟ</div>
-
-            {% if c and c.type == "ac" %}
-              <div class="grid3 mt1">
-                <div>
-                  <div class="muted small">BTU</div>
-                  <input type="number" name="{{ key }}__btu" value="{{ cfg.btu or 12000 }}" min="6000" max="60000">
-                </div>
-                <div>
-                  <div class="muted small">อุณหภูมิ (°C)</div>
-                  <input type="number" name="{{ key }}__set_temp" value="{{ cfg.set_temp or 26 }}" min="16" max="30">
-                </div>
-                <div>
-                  <div class="muted small">ชั่วโมง/วัน</div>
-                  <input type="number" step="0.1" name="{{ key }}__hours" value="{{ cfg.hours or 6 }}" min="0" max="24">
-                </div>
-              </div>
-
-              <label class="row gap mt1" style="align-items:center;">
-                <input type="checkbox" name="{{ key }}__inverter" {% if cfg.inverter %}checked{% endif %}>
-                <span class="muted">Inverter (ประหยัดไฟกว่า)</span>
-              </label>
-
-            {% elif c and c.type == "lights" %}
-              <div class="grid3 mt1">
-                <div>
-                  <div class="muted small">ชนิดหลอด</div>
-                  <select name="{{ key }}__mode">
-                    <option value="LED" {% if cfg.mode == "LED" %}selected{% endif %}>LED</option>
-                    <option value="Normal" {% if cfg.mode == "Normal" %}selected{% endif %}>Normal</option>
-                  </select>
-                </div>
-                <div>
-                  <div class="muted small">กำลังไฟรวม (W)</div>
-                  <input type="number" name="{{ key }}__watts" value="{{ cfg.watts or 30 }}" min="0" max="5000">
-                </div>
-                <div>
-                  <div class="muted small">ชั่วโมง/วัน</div>
-                  <input type="number" step="0.1" name="{{ key }}__hours" value="{{ cfg.hours or 5 }}" min="0" max="24">
-                </div>
-              </div>
-
-            {% elif c and c.type == "fridge" %}
-              <div class="grid3 mt1">
-                <div>
-                  <div class="muted small">kWh ต่อวัน</div>
-                  <input type="number" step="0.1" name="{{ key }}__kwh_per_day" value="{{ cfg.kwh_per_day or 1.2 }}" min="0" max="30">
-                </div>
-              </div>
-
-            {% elif c and c.type == "ev_charger" %}
-              <div class="grid3 mt1">
-                <div>
-                  <div class="muted small">แบต (kWh)</div>
-                  <input type="number" step="1" name="{{ key }}__battery_kwh" value="{{ cfg.battery_kwh or 60 }}" min="20" max="200">
-                </div>
-                <div>
-                  <div class="muted small">Charger (kW)</div>
-                  <input type="number" step="0.1" name="{{ key }}__charger_kw" value="{{ cfg.charger_kw or 7.4 }}" min="1" max="50">
-                </div>
-                <div>
-                  <div class="muted small">ประสิทธิภาพ (0.50–1.00)</div>
-                  <input type="number" step="0.01" name="{{ key }}__efficiency" value="{{ cfg.efficiency or 0.9 }}" min="0.5" max="1.0">
-                </div>
-              </div>
-
-              <div class="grid3 mt1">
-                <div>
-                  <div class="muted small">ชาร์จจาก %</div>
-                  <input type="number" name="{{ key }}__soc_from" value="{{ cfg.soc_from or 30 }}" min="0" max="100">
-                </div>
-                <div>
-                  <div class="muted small">ถึง %</div>
-                  <input type="number" name="{{ key }}__soc_to" value="{{ cfg.soc_to or 80 }}" min="0" max="100">
-                </div>
-                <div>
-                  <div class="muted small">จำนวนครั้งชาร์จ/สัปดาห์</div>
-                  <input type="number" name="{{ key }}__charges_per_week" value="{{ cfg.charges_per_week or 3 }}" min="0" max="14">
-                </div>
-              </div>
-
-              <div class="mt2">
-                <div class="badge">③ เวลาใช้งาน</div>
-                <div class="grid3 mt1">
-                  <div>
-                    <div class="muted small">เริ่มชาร์จ (ชั่วโมง)</div>
-                    <input type="number" name="{{ key }}__start_hour" value="{{ cfg.start_hour or 22 }}" min="0" max="23">
-                    <div class="muted small mt1">ระบบจะคำนวณ “จำนวนชั่วโมงชาร์จ” ให้อัตโนมัติจาก % และขนาดเครื่องชาร์จ</div>
-                  </div>
-                </div>
-              </div>
-
-            {% else %}
-              <div class="grid3 mt1">
-                <div>
-                  <div class="muted small">กำลังไฟ (W)</div>
-                  <input type="number" name="{{ key }}__watts" value="{{ cfg.watts or 100 }}" min="0" max="100000">
-                </div>
-                <div>
-                  <div class="muted small">ชั่วโมง/วัน</div>
-                  <input type="number" step="0.1" name="{{ key }}__hours" value="{{ cfg.hours or 1 }}" min="0" max="24">
-                </div>
-              </div>
-            {% endif %}
-          </div>
-
-          {% if c and c.type == "ac" %}
-          <div class="mt2">
-            <div class="badge">③ เวลาใช้งาน</div>
-            <div class="grid3 mt1">
-              <div>
-                <div class="muted small">เริ่ม (ชั่วโมง)</div>
-                <input type="number" name="{{ key }}__start_hour" value="{{ cfg.start_hour or 20 }}" min="0" max="23">
-              </div>
-              <div>
-                <div class="muted small">สิ้นสุด (ชั่วโมง)</div>
-                <input type="number" name="{{ key }}__end_hour" value="{{ cfg.end_hour or 2 }}" min="0" max="23">
-              </div>
-            </div>
-          </div>
-          {% endif %}
-
-        </div>
-      {% endfor %}
-
-      <div class="row gap mt">
-        <button class="btn primary" type="submit">💾 บันทึกการตั้งค่า</button>
-        <a class="btn" href="{{ url_for('rooms_setup') }}">ยกเลิก</a>
-      </div>
-
-    </form>
-  </main>
-</div>
-</body>
-</html>
+/* ✅ ให้ดูเป็น “เช็คใหญ่ชัด” มากขึ้นตอน ON */
+.switch.big input:checked + .slider{
+  box-shadow: 0 0 0 2px rgba(254,80,0,0.35), 0 12px 24px rgba(0,0,0,0.35);
+}
