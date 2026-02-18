@@ -6,9 +6,9 @@
    ============================================================ */
 
 :root{
-  /* Base */
-  --bg1:#0b1426;
-  --bg2:#070e1a;
+  /* Base (ลดโทนน้ำเงิน -> เทาเข้มแบบองค์กร) */
+  --bg1:#0a0f18;
+  --bg2:#06080d;
 
   --card:#0f1b30cc;
   --cardSolid:#0f1b30;
@@ -50,14 +50,12 @@ body.bg{
   margin:0;
   font-family:var(--font);
   color:var(--text);
-
-  /* ✅ MEA Corporate Background (ปรับให้โทนองค์กรชัด + อ่านง่าย) */
   background:
-    radial-gradient(1200px 700px at 20% 0%, rgba(254,80,0,.14) 0%, transparent 55%),
-    radial-gradient(900px 600px at 85% 25%, rgba(255,191,63,.10) 0%, transparent 55%),
-    radial-gradient(900px 650px at 60% 95%, rgba(99,102,106,.10) 0%, transparent 55%),
-    linear-gradient(180deg, #0d1a2d, #060b15);
-
+    radial-gradient(1200px 700px at 18% 0%, rgba(254,80,0,.14) 0%, transparent 55%),
+    radial-gradient(900px 650px at 88% 18%, rgba(255,191,63,.10) 0%, transparent 58%),
+    radial-gradient(900px 650px at 62% 95%, rgba(134,38,51,.09) 0%, transparent 60%),
+    radial-gradient(900px 650px at 15% 85%, rgba(99,102,106,.10) 0%, transparent 60%),
+    linear-gradient(180deg, var(--bg1), var(--bg2));
   min-height:100vh;
 }
 
@@ -263,8 +261,12 @@ h3{
   border:none;
   color:#fff;
 }
-.btn.primary:hover{filter: brightness(1.03);}
-.btn.ghost{background: transparent;}
+.btn.primary:hover{
+  filter: brightness(1.03);
+}
+.btn.ghost{
+  background: transparent;
+}
 
 /* Back link */
 .back{
@@ -295,6 +297,30 @@ select{cursor:pointer}
 input:focus,select:focus{
   border-color: rgba(254,80,0,.55);
   box-shadow: 0 0 0 3px rgba(254,80,0,.16);
+}
+
+/* ✅ Checkbox ให้ใหญ่ + สีองค์กร + อ่านง่าย */
+input[type="checkbox"]{
+  width:20px;
+  height:20px;
+  accent-color: var(--primary);
+}
+
+/* ✅ บรรทัด checkbox ให้เป็นระเบียบ (ใช้กับ “เปิดอุปกรณ์นี้ในห้อง”, “Inverter” ฯลฯ) */
+.checkline{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  white-space:nowrap;
+  font-weight:900;
+}
+.checkline span{
+  font-weight:900;
+  color:var(--text);
+}
+.checkline .hint{
+  font-weight:800;
+  color:var(--muted);
 }
 
 /* Flash messages */
@@ -407,41 +433,24 @@ code, .code{
 }
 
 /* Make KPI feel "official" */
-.grid3 .mini .big{ margin-top:6px; }
-.grid3 .mini{ border-left:3px solid rgba(254,80,0,.35); }
+.grid3 .mini .big{
+  margin-top:6px;
+}
+.grid3 .mini{
+  border-left:3px solid rgba(254,80,0,.35);
+}
 
 /* Improve readability in result boxes */
-#resultBox, #roomsSummary{ line-height:1.55; }
-#resultBox .big{ font-size:22px; }
+#resultBox, #roomsSummary{
+  line-height:1.55;
+}
+#resultBox .big{
+  font-size:22px;
+}
 
 /* Responsive tweak for smaller phones */
 @media (max-width: 520px){
   .shell{padding:12px 10px 30px}
   .btn{padding:10px 12px}
   .big{font-size:22px}
-}
-
-/* ============================================================
-   ✅ Executive Checkbox (ใหญ่ขึ้น + อยู่หน้าข้อความ + บรรทัดเดียว)
-   ============================================================ */
-.checkbox-lg{
-  display:flex;
-  align-items:center;
-  gap:10px;
-  font-weight:800;
-  cursor:pointer;
-  user-select:none;
-}
-
-.checkbox-lg input[type="checkbox"]{
-  width:22px;
-  height:22px;
-  accent-color: var(--primary);
-  cursor:pointer;
-  flex:0 0 auto;
-}
-
-.checkbox-lg span{
-  white-space:nowrap;
-  line-height:1.2;
 }
