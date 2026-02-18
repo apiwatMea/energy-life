@@ -1,16 +1,100 @@
 <!doctype html>
 <html lang="th">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>ENERGY LIFE V3</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>{{ app_name if app_name else "ENERGY LIFE V3" }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"/>
 </head>
-<body style="font-family:Arial, sans-serif; padding:24px;">
-  <h1>ENERGY LIFE V3</h1>
-  <p>ยินดีต้อนรับ! ผู้เข้าชมทั้งหมด: <b>{{ visitor_count }}</b></p>
-  <p>
-    <a href="/login">เข้าสู่ระบบ</a> |
-    <a href="/register">สมัครสมาชิก</a>
-  </p>
+
+<body class="bg">
+  <div class="shell">
+    <!-- TOP BAR (MEA feel) -->
+    <header class="top bar">
+      <div class="row gap">
+        <div class="logo" aria-hidden="true">🏠</div>
+        <div>
+          <div class="title">{{ app_name if app_name else "ENERGY LIFE V3" }}</div>
+          <div class="subtitle">
+            ระบบคำนวณและติดตามการใช้พลังงานภายในบ้าน (โหมดใช้งานจริง)
+          </div>
+        </div>
+      </div>
+
+      <div class="row gap">
+        <a class="btn" href="{{ url_for('login') }}">เข้าสู่ระบบ</a>
+        <a class="btn primary" href="{{ url_for('register') }}">สมัครสมาชิก</a>
+      </div>
+    </header>
+
+    <!-- HERO -->
+    <main class="grid2" style="margin-top:14px;">
+      <section class="card">
+        <h1 style="margin:0 0 10px; font-size:28px; letter-spacing:.2px;">
+          แดชบอร์ดพลังงาน “บ้านจริงของคุณ”
+        </h1>
+
+        <div class="muted" style="max-width:68ch;">
+          ตั้งค่ามิเตอร์ (Non-TOU/TOU), Solar, โครงสร้างบ้าน/ห้อง และอุปกรณ์รายห้อง
+          จากนั้นจำลองรายวันเพื่อดูค่าใช้ไฟและค่าใช้จ่ายรายเดือนแบบเข้าใจง่าย
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="grid3 mt2">
+          <div class="mini">
+            <div class="mini-title">👥 ผู้เข้าชมทั้งหมด</div>
+            <div class="big">{{ visitor_count }}</div>
+            <div class="muted small">นับจากระบบ Visitor Counter</div>
+          </div>
+
+          <div class="mini">
+            <div class="mini-title">⚙️ โหมดระบบ</div>
+            <div class="big">ใช้งานจริง</div>
+            <div class="muted small">โหมดเกมถูกปิด</div>
+          </div>
+
+          <div class="mini">
+            <div class="mini-title">✅ พร้อมใช้งาน</div>
+            <div class="big">V3</div>
+            <div class="muted small">Room-based + EV + TOU</div>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="row gap mt2">
+          <a class="btn primary" href="{{ url_for('login') }}">🚀 เริ่มใช้งาน</a>
+          <a class="btn" href="{{ url_for('register') }}">📝 สมัครสมาชิก</a>
+        </div>
+
+        <div class="mt2 muted small">
+          * โทนสีและ UI ใช้มาตรฐานองค์กร (MEA) เพื่อการนำเสนอและใช้งานภายใน
+        </div>
+      </section>
+
+      <!-- RIGHT: MEA style panel -->
+      <aside class="card">
+        <h2 style="margin:0 0 10px;">สิ่งที่ระบบทำได้</h2>
+
+        <div class="panel">
+          <ul class="tips" style="margin-top:0;">
+            <li><b>ตั้งค่าโครงสร้างบ้าน</b> (Bedroom/Bathroom/Living/Kitchen/Parking ฯลฯ)</li>
+            <li><b>ตั้งค่าอุปกรณ์รายห้อง</b> พร้อมสถานะ “บันทึกแล้ว/ยังไม่บันทึก”</li>
+            <li><b>จำลองรายวัน</b> เพื่อดู kWh/วัน และค่าใช้จ่าย</li>
+            <li><b>สรุปแยกห้อง</b> เห็นสัดส่วนการใช้ไฟ + EV รายวัน/รายเดือน</li>
+          </ul>
+        </div>
+
+        <div class="divider"></div>
+
+        <h3 style="margin:0 0 10px;">ลิงก์ทางลัด</h3>
+        <div class="row gap">
+          <a class="btn" href="{{ url_for('login') }}">🔐 Login</a>
+          <a class="btn" href="{{ url_for('register') }}">➕ Register</a>
+        </div>
+      </aside>
+    </main>
+  </div>
 </body>
 </html>
