@@ -56,11 +56,13 @@
           <div class="mt2">
             <div class="badge">① เปิดใช้งาน</div>
 
-            <!-- ✅ FIX: checkbox ใหญ่ + อยู่หน้าข้อความ + บรรทัดเดียว -->
-            <label class="checkbox-lg mt1">
-              <input type="checkbox" name="{{ key }}__enabled" {% if cfg.enabled %}checked{% endif %}>
-              <span class="muted">เปิดอุปกรณ์นี้ในห้อง</span>
-            </label>
+            <!-- ✅ ทำ checkbox ให้ใหญ่ + อยู่ซ้าย + บรรทัดเดียว -->
+            <div class="mt1">
+              <label class="checkline">
+                <input type="checkbox" name="{{ key }}__enabled" {% if cfg.enabled %}checked{% endif %}>
+                <span>เปิดอุปกรณ์นี้ในห้อง</span>
+              </label>
+            </div>
           </div>
 
           <div class="mt2">
@@ -82,10 +84,13 @@
                 </div>
               </div>
 
-              <label class="row gap mt1" style="align-items:center;">
-                <input type="checkbox" name="{{ key }}__inverter" {% if cfg.inverter %}checked{% endif %}>
-                <span class="muted">Inverter (ประหยัดไฟกว่า)</span>
-              </label>
+              <!-- ✅ Inverter: ให้เหมือนกัน + อยู่ฝั่งซ้าย + บรรทัดเดียว -->
+              <div class="mt1">
+                <label class="checkline">
+                  <input type="checkbox" name="{{ key }}__inverter" {% if cfg.inverter %}checked{% endif %}>
+                  <span>Inverter <span class="hint">(ประหยัดไฟกว่า)</span></span>
+                </label>
+              </div>
 
             {% elif c and c.type == "lights" %}
               <div class="grid3 mt1">
