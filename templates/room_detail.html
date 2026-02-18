@@ -1,4 +1,4 @@
-room_detail.html <!doctype html>
+<!doctype html>
 <html lang="th">
 <head>
   <meta charset="utf-8"/>
@@ -55,7 +55,9 @@ room_detail.html <!doctype html>
 
           <div class="mt2">
             <div class="badge">① เปิดใช้งาน</div>
-            <label class="row gap mt1" style="align-items:center;">
+
+            <!-- ✅ FIX: checkbox ใหญ่ + อยู่หน้าข้อความ + บรรทัดเดียว -->
+            <label class="checkbox-lg mt1">
               <input type="checkbox" name="{{ key }}__enabled" {% if cfg.enabled %}checked{% endif %}>
               <span class="muted">เปิดอุปกรณ์นี้ในห้อง</span>
             </label>
@@ -196,4 +198,4 @@ room_detail.html <!doctype html>
   </main>
 </div>
 </body>
-</html>  
+</html>
