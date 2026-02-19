@@ -7,8 +7,8 @@
 
 :root{
   /* Base (ลดโทนน้ำเงิน -> เทาเข้มแบบองค์กร) */
-  --bg1:#63666A;
-  --bg2:#BBBCBC;
+  --bg1:#BBBCBC;
+  --bg2:#63666A;
 
   --card:#0f1b30cc;
   --cardSolid:#0f1b30;
