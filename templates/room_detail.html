@@ -41,7 +41,7 @@
 
         <div class="mini mt">
 
-          <div class="row gap" style="justify-content:space-between;align-items:center;">
+          <div class="row between" style="align-items:flex-start;">
             <div>
               <div class="mini-title">
                 {{ c.icon if c else "🔧" }}
@@ -56,7 +56,7 @@
           <div class="mt2">
             <div class="badge">① เปิดใช้งาน</div>
 
-            <!-- ✅ ทำ checkbox ให้ใหญ่ + อยู่ซ้าย + บรรทัดเดียว -->
+            <!-- ✅ Checkbox style เดียวกันทั้งหมด -->
             <div class="mt1">
               <label class="checkline">
                 <input type="checkbox" name="{{ key }}__enabled" {% if cfg.enabled %}checked{% endif %}>
@@ -84,7 +84,7 @@
                 </div>
               </div>
 
-              <!-- ✅ Inverter: ให้เหมือนกัน + อยู่ฝั่งซ้าย + บรรทัดเดียว -->
+              <!-- ✅ Inverter: ให้อยู่แนวเดียวกัน + ฝั่งเดียวกัน + ฟีลเดียวกับ Enable -->
               <div class="mt1">
                 <label class="checkline">
                   <input type="checkbox" name="{{ key }}__inverter" {% if cfg.inverter %}checked{% endif %}>
@@ -116,6 +116,7 @@
                 <div>
                   <div class="muted small">kWh ต่อวัน</div>
                   <input type="number" step="0.1" name="{{ key }}__kwh_per_day" value="{{ cfg.kwh_per_day or 1.2 }}" min="0" max="30">
+                  <div class="muted small mt1">* ค่าโดยประมาณทั้งวัน (รวมช่วงคอมเพรสเซอร์ตัด-ต่อ)</div>
                 </div>
               </div>
 
@@ -156,7 +157,7 @@
                   <div>
                     <div class="muted small">เริ่มชาร์จ (ชั่วโมง)</div>
                     <input type="number" name="{{ key }}__start_hour" value="{{ cfg.start_hour or 22 }}" min="0" max="23">
-                    <div class="muted small mt1">ระบบจะคำนวณ “จำนวนชั่วโมงชาร์จ” ให้อัตโนมัติจาก % และขนาดเครื่องชาร์จ</div>
+                    <div class="muted small mt1">ระบบจะคำนวณ “จำนวนชั่วโมงชาร์จ” ให้อัตโนมัติ</div>
                   </div>
                 </div>
               </div>
