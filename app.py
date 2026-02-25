@@ -82,8 +82,12 @@ APPLIANCES_CATALOG = [
      "defaults": {"enabled": True, "mode": "LED", "watts": 30, "hours": 5}},
     {"key": "tv", "name": "ทีวี", "icon": "📺", "type": "generic",
      "defaults": {"enabled": True, "watts": 120, "hours": 3}},
+
+    # ✅ เฟส 1 (แผน A): ตู้เย็นเปลี่ยนเป็น "เลือกกี่คิว + จำนวนเครื่อง + เปิด/วัน"
+    # - ยังรองรับคีย์เก่า kwh_per_day ถ้ามีอยู่ใน state เดิม
     {"key": "fridge", "name": "ตู้เย็น", "icon": "🧊", "type": "fridge",
-     "defaults": {"enabled": True, "kwh_per_day": 1.2}},
+     "defaults": {"enabled": True, "size_band": "10_14", "qty": 1, "open_times": 20}},
+
     {"key": "water_heater", "name": "เครื่องทำน้ำอุ่น", "icon": "🚿", "type": "generic",
      "defaults": {"enabled": False, "watts": 3500, "hours": 0.3}},
     {"key": "washer", "name": "เครื่องซักผ้า", "icon": "🧺", "type": "generic",
@@ -672,6 +676,35 @@ def bill_day_from_month_obj(month_obj: dict):
         return 0.0
 
 
+# =========================
+# ✅ เฟส 1: ตู้เย็น (แผน A)
+# =========================
+def fridge_base_kwh_per_day_by_band(size_band: str) -> float:
+    # ค่าเฉลี่ยฐาน/เครื่อง (kWh ต่อวัน)
+    # 6–9: 0.8 | 10–14: 1.0 | 15–18: 1.2 | 19–25: 1.5
+    band = str(size_band or "").strip()
+    mapping = {
+        "6_9": 0.8,
+        "10_14": 1.0,
+        "15_18": 1.2,
+        "19_25": 1.5,
+    }
+    return float(mapping.get(band, 1.0))
+
+
+def fridge_open_mult(open_times: int) -> float:
+    # baseline = 20 ครั้ง/วัน
+    # kwh_final = base * (1 + (open_times-20)*0.01)
+    try:
+        ot = int(open_times or 0)
+    except Exception:
+        ot = 20
+    ot = max(0, min(200, ot))
+    mult = 1.0 + (ot - 20) * 0.01
+    # กันหลุด: ไม่ให้ต่ำหรือสูงเกินจริง
+    return max(0.6, min(1.8, float(mult)))
+
+
 def compute_daily_energy(profile, state):
     tariff_mode = state.get("tariff_mode", "non_tou")
     solar_kw = float(state.get("solar_kw", 0) or 0)
@@ -706,7 +739,26 @@ def compute_daily_energy(profile, state):
                 kwh_breakdown[key] = calc_ac_kwh(btu, set_temp, hours, inverter=inverter)
 
             elif key == "fridge":
-                kwh_breakdown[key] = float(cfg.get("kwh_per_day", 1.2))
+                # ✅ เฟส 1 (แผน A)
+                # - ถ้ามี kwh_per_day (ข้อมูลเก่า) ให้ใช้ก่อนเพื่อ backward compatible
+                if cfg.get("kwh_per_day") is not None:
+                    try:
+                        base_old = float(cfg.get("kwh_per_day", 1.2) or 1.2)
+                    except Exception:
+                        base_old = 1.2
+                    qty = int(cfg.get("qty", 1) or 1)
+                    qty = max(1, min(10, qty))
+                    kwh_breakdown[key] = max(0.0, base_old) * qty
+                else:
+                    size_band = cfg.get("size_band", "10_14")
+                    qty = int(cfg.get("qty", 1) or 1)
+                    qty = max(1, min(10, qty))
+                    open_times = int(cfg.get("open_times", 20) or 20)
+                    open_times = max(0, min(200, open_times))
+
+                    base = fridge_base_kwh_per_day_by_band(size_band)
+                    mult = fridge_open_mult(open_times)
+                    kwh_breakdown[key] = base * mult * qty
 
             elif key == "lights":
                 watts = float(cfg.get("watts", 30))
@@ -1189,7 +1241,14 @@ def room_detail(rid):
                 cfg["hours"] = _to_float_form(f"{key}__hours", cfg.get("hours", 5), 0, 24)
 
             elif t == "fridge":
-                cfg["kwh_per_day"] = _to_float_form(f"{key}__kwh_per_day", cfg.get("kwh_per_day", 1.2), 0, 30)
+                # ✅ เฟส 1 (แผน A): บันทึกแบบเลือกกี่คิว + จำนวน + เปิด/วัน
+                cfg["size_band"] = request.form.get(f"{key}__size_band", cfg.get("size_band", "10_14"))
+                cfg["qty"] = _to_int_form(f"{key}__qty", cfg.get("qty", 1), 1, 10)
+                cfg["open_times"] = _to_int_form(f"{key}__open_times", cfg.get("open_times", 20), 0, 200)
+
+                # ✅ กันกรณี state เก่ามี kwh_per_day: ไม่ต้องลบทิ้งก็ได้ แต่ไม่ใช้ใน UI แล้ว
+                # (ถ้าคุณอยาก “ล้างทิ้ง” ให้ uncomment บรรทัดนี้)
+                # cfg.pop("kwh_per_day", None)
 
             elif t == "ev_charger":
                 cfg["battery_kwh"] = _to_float_form(f"{key}__battery_kwh", cfg.get("battery_kwh", 60.0), 10, 200)
