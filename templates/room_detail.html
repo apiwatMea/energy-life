@@ -41,7 +41,7 @@
 
         <div class="mini mt">
 
-          <div class="row between" style="align-items:flex-start;">
+          <div class="row gap" style="justify-content:space-between;align-items:center;">
             <div>
               <div class="mini-title">
                 {{ c.icon if c else "🔧" }}
@@ -56,7 +56,6 @@
           <div class="mt2">
             <div class="badge">① เปิดใช้งาน</div>
 
-            <!-- ✅ Checkbox style เดียวกันทั้งหมด -->
             <div class="mt1">
               <label class="checkline">
                 <input type="checkbox" name="{{ key }}__enabled" {% if cfg.enabled %}checked{% endif %}>
@@ -84,7 +83,6 @@
                 </div>
               </div>
 
-              <!-- ✅ Inverter: ให้อยู่แนวเดียวกัน + ฝั่งเดียวกัน + ฟีลเดียวกับ Enable -->
               <div class="mt1">
                 <label class="checkline">
                   <input type="checkbox" name="{{ key }}__inverter" {% if cfg.inverter %}checked{% endif %}>
@@ -112,11 +110,29 @@
               </div>
 
             {% elif c and c.type == "fridge" %}
+              <!-- ✅ เฟส 1 (แผน A): ตู้เย็นเลือก "กี่คิว + จำนวนเครื่อง + เปิด/วัน" -->
               <div class="grid3 mt1">
                 <div>
-                  <div class="muted small">kWh ต่อวัน</div>
-                  <input type="number" step="0.1" name="{{ key }}__kwh_per_day" value="{{ cfg.kwh_per_day or 1.2 }}" min="0" max="30">
-                  <div class="muted small mt1">* ค่าโดยประมาณทั้งวัน (รวมช่วงคอมเพรสเซอร์ตัด-ต่อ)</div>
+                  <div class="muted small">ขนาดตู้เย็น (คิว)</div>
+                  <select name="{{ key }}__size_band">
+                    <option value="6_9" {% if cfg.size_band == "6_9" %}selected{% endif %}>6–9 คิว</option>
+                    <option value="10_14" {% if cfg.size_band == "10_14" or not cfg.size_band %}selected{% endif %}>10–14 คิว</option>
+                    <option value="15_18" {% if cfg.size_band == "15_18" %}selected{% endif %}>15–18 คิว</option>
+                    <option value="19_25" {% if cfg.size_band == "19_25" %}selected{% endif %}>19–25 คิว</option>
+                  </select>
+                  <div class="muted small mt1">* ระบบจะคำนวณ kWh/วันให้อัตโนมัติ</div>
+                </div>
+
+                <div>
+                  <div class="muted small">จำนวนเครื่อง</div>
+                  <input type="number" name="{{ key }}__qty" value="{{ cfg.qty or 1 }}" min="1" max="10">
+                  <div class="muted small mt1">เช่น บ้านมี 2 ตู้</div>
+                </div>
+
+                <div>
+                  <div class="muted small">เปิด/ปิดกี่ครั้งต่อวัน</div>
+                  <input type="number" name="{{ key }}__open_times" value="{{ cfg.open_times or 20 }}" min="0" max="200">
+                  <div class="muted small mt1">ค่าแนะนำทั่วไป ≈ 20 ครั้ง/วัน</div>
                 </div>
               </div>
 
@@ -157,7 +173,7 @@
                   <div>
                     <div class="muted small">เริ่มชาร์จ (ชั่วโมง)</div>
                     <input type="number" name="{{ key }}__start_hour" value="{{ cfg.start_hour or 22 }}" min="0" max="23">
-                    <div class="muted small mt1">ระบบจะคำนวณ “จำนวนชั่วโมงชาร์จ” ให้อัตโนมัติ</div>
+                    <div class="muted small mt1">ระบบจะคำนวณ “จำนวนชั่วโมงชาร์จ” ให้อัตโนมัติจาก % และขนาดเครื่องชาร์จ</div>
                   </div>
                 </div>
               </div>
