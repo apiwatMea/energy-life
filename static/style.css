@@ -1,458 +1,124 @@
 /* ============================================================
-   MEA Executive Edition (ENERGY LIFE V3)
-   - Brand colors: MEA ORANGE #FE5000
-   - Clean government-dashboard look
-   - Better typography, spacing, readability
+   MEA Light Portal Edition (Matched with Screenshot)
+   - Primary Color: MEA ORANGE #FE5000
+   - Style: Clean, Professional, High Readability
    ============================================================ */
 
-:root{
-  /* Base (ลดโทนน้ำเงิน -> เทาเข้มแบบองค์กร) */
-  --bg1:#BBBCBC;
-  --bg2:#63666A;
+:root {
+  /* พื้นหลังและพื้นผิว (Light Theme) */
+  --bg-body: #f8f9fa;
+  --bg-card: #ffffff;
+  
+  /* MEA Brand Colors */
+  --primary: #FE5000;         /* ส้ม MEA */
+  --primary-dark: #e64a00;
+  --text-main: #333333;      /* ตัวอักษรหลัก */
+  --text-muted: #666666;    /* ตัวอักษรรอง */
+  --border-light: #e0e0e0;
+  
+  /* Status Colors */
+  --ok: #28a745;
+  --warn: #ffc107;
+  --danger: #dc3545;
 
-  --card:#0f1b30cc;
-  --cardSolid:#0f1b30;
-  --card2:#0c172acc;
-
-  --border:#243a63;
-  --border2:#1f3357;
-
-  --text:#f5f7fb;
-  --muted:#bfc7d9;
-
-  /* MEA Brand */
-  --primary:#FE5000;         /* MEA ORANGE */
-  --primaryDark:#d94300;
-  --secondary:#63666A;       /* MEA DARK GRAY */
-  --light:#BBBCBC;           /* MEA LIGHT GRAY */
-  --yellow:#FFBF3F;          /* MEA YELLOW */
-  --red:#862633;             /* MEA RED */
-
-  /* Status */
-  --ok:#2fd07a;
-  --warn:#FFBF3F;
-  --danger:#ff5c7a;
-
-  /* Effects */
-  --shadow: 0 14px 40px rgba(0,0,0,.35);
-  --radius: 18px;
-  --radius2: 14px;
-
-  /* Typography */
-  --font: "Noto Sans Thai", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  /* UI Spec */
+  --font: "Noto Sans Thai", "Sarabun", sans-serif;
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.05);
+  --radius: 8px;
 }
 
-*{box-sizing:border-box}
-html,body{height:100%}
+/* Base Style */
+body {
+  margin: 0;
+  font-family: var(--font);
+  background-color: var(--bg-body);
+  color: var(--text-main);
+  line-height: 1.6;
+}
 
-body.bg{
-  margin:0;
-  font-family:var(--font);
-  color:var(--text);
-  background:
-    radial-gradient(1200px 700px at 18% 0%, rgba(254,80,0,.14) 0%, transparent 55%),
-    radial-gradient(900px 650px at 88% 18%, rgba(255,191,63,.10) 0%, transparent 58%),
-    radial-gradient(900px 650px at 62% 95%, rgba(134,38,51,.09) 0%, transparent 60%),
-    radial-gradient(900px 650px at 15% 85%, rgba(99,102,106,.10) 0%, transparent 60%),
-    linear-gradient(180deg, var(--bg1), var(--bg2));
-  min-height:100vh;
+/* Header / Top Bar (ปรับให้ส้มตามรูป) */
+.top-nav {
+  background-color: var(--primary);
+  color: #ffffff;
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.top-nav a {
+  color: white;
+  text-decoration: none;
+  font-size: 14px;
 }
 
 /* Container */
-.shell{
-  max-width:1160px;
-  margin:0 auto;
-  padding:16px 14px 44px;
+.container {
+  max-width: 900px;
+  margin: 40px auto;
+  padding: 0 15px;
 }
 
-/* Top bar */
-.top{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:12px;
-  padding:12px 10px;
-  border:1px solid rgba(255,255,255,.06);
-  border-radius:var(--radius);
-  background:linear-gradient(90deg, rgba(15,27,48,.72), rgba(10,18,34,.62));
-  box-shadow:var(--shadow);
-  position:sticky;
-  top:0;
-  z-index:5;
-  backdrop-filter: blur(10px);
+/* Card Style (สีขาว ขอบเทาอ่อน) */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
 }
 
-.top.bar{
-  border-left:4px solid var(--primary);
+/* Card Header (ส้มเข้มตามในรูป) */
+.card-header {
+  background-color: var(--primary);
+  color: #ffffff;
+  padding: 12px;
+  text-align: center;
+  font-weight: bold;
+  font-size: 18px;
 }
 
-.top .logo{
-  font-size:30px;
-  filter: drop-shadow(0 10px 18px rgba(0,0,0,.25));
+/* Content Area */
+.card-body {
+  padding: 20px;
 }
 
-/* Headings */
-.title{
-  font-size:18px;
-  font-weight:800;
-  letter-spacing:.2px;
-  line-height:1.15;
-}
-.subtitle{
-  font-size:12.5px;
-  color:var(--muted);
-  line-height:1.35;
+/* List Items (งานต่างๆ) */
+.list-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-light);
 }
 
-h2{
-  margin:0 0 10px;
-  font-size:18px;
-  font-weight:900;
-  letter-spacing:.2px;
-  padding-left:12px;
-  border-left:4px solid var(--primary);
-}
-h3{
-  margin:0 0 8px;
-  font-size:15px;
-  font-weight:900;
-  letter-spacing:.15px;
+.list-item:last-child {
+  border-bottom: none;
 }
 
-/* Layout helpers */
-.row{display:flex; align-items:center}
-.row.gap{gap:10px}
-.row.between{justify-content:space-between}
-.row.end{justify-content:flex-end}
-.grow{flex:1}
-.mt{margin-top:14px}
-.mt1{margin-top:10px}
-.mt2{margin-top:12px}
-
-.muted{color:var(--muted)}
-.small{font-size:12px}
-
-/* Main grids */
-.grid2{
-  display:grid;
-  grid-template-columns: 1.35fr .95fr;
-  gap:14px;
-  align-items:start;
-}
-.grid3{
-  display:grid;
-  grid-template-columns: repeat(3, minmax(0,1fr));
-  gap:10px;
-}
-@media (max-width: 980px){
-  .grid2{grid-template-columns:1fr}
-  .top{flex-direction:column; align-items:flex-start}
+/* ตัวเลขและลิงก์สีส้ม (Highlight ตามรูป) */
+.link-orange {
+  color: var(--primary);
+  text-decoration: underline;
+  font-weight: bold;
 }
 
-/* Cards */
-.card{
-  background:var(--card);
-  border:1px solid rgba(255,255,255,.08);
-  border-radius:var(--radius);
-  padding:16px 16px;
-  box-shadow:var(--shadow);
-}
-.card2{
-  background:var(--card2);
-  border:1px solid rgba(255,255,255,.08);
-  border-radius:var(--radius2);
-  padding:14px 14px;
+/* Accordion Style (ส่วน "งานตามแผนก" และ "งานของฉัน") */
+.accordion-toggle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px;
+  border-top: 1px solid var(--border-light);
+  cursor: pointer;
+  font-weight: bold;
+  color: var(--primary); /* หรือสีเทาเข้มตามชอบ */
 }
 
-/* Dividers */
-.divider{
-  height:1px;
-  background:linear-gradient(90deg, rgba(254,80,0,.55), rgba(255,255,255,.08));
-  margin:14px 0;
-}
+/* Utils */
+.text-center { text-align: center; }
+.mb-20 { margin-bottom: 20px; }
 
-/* Panel */
-.panel{
-  background: rgba(9,16,32,.60);
-  border:1px dashed rgba(254,80,0,.35);
-  border-radius:16px;
-  padding:12px 12px;
+/* Responsive */
+@media (max-width: 600px) {
+  .container { margin: 10px auto; }
 }
-
-/* KPI mini cards */
-.mini{
-  background: rgba(9,16,32,.55);
-  border:1px solid rgba(255,255,255,.10);
-  border-radius:16px;
-  padding:12px 12px;
-  position:relative;
-}
-.mini:before{
-  content:"";
-  position:absolute;
-  inset:0;
-  border-radius:16px;
-  pointer-events:none;
-  box-shadow: inset 0 0 0 1px rgba(254,80,0,.08);
-}
-.mini-title{
-  font-weight:800;
-  font-size:12.5px;
-  color:var(--muted);
-  letter-spacing:.2px;
-}
-.mini-text{font-size:12px}
-.big{
-  font-size:24px;
-  font-weight:900;
-  letter-spacing:.3px;
-  line-height:1.05;
-}
-
-/* Badges */
-.badge{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  padding:6px 10px;
-  border-radius:999px;
-  border:1px solid rgba(254,80,0,.35);
-  background: rgba(254,80,0,.12);
-  color: var(--text);
-  font-weight:900;
-  font-size:12px;
-}
-.badge.ok{
-  border-color: rgba(47,208,122,.35);
-  background: rgba(47,208,122,.12);
-}
-.badge.warn{
-  border-color: rgba(255,191,63,.40);
-  background: rgba(255,191,63,.12);
-}
-.badge.danger{
-  border-color: rgba(255,92,122,.40);
-  background: rgba(255,92,122,.12);
-}
-
-/* Buttons */
-.btn{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  padding:10px 14px;
-  border-radius:999px;
-  border:1px solid rgba(255,255,255,.14);
-  background: rgba(10,18,34,.55);
-  color:var(--text);
-  text-decoration:none;
-  cursor:pointer;
-  font-weight:800;
-  gap:8px;
-  transition: transform .12s ease, background .12s ease, border-color .12s ease;
-}
-.btn:hover{
-  transform: translateY(-1px);
-  border-color: rgba(254,80,0,.35);
-}
-.btn.primary{
-  background: linear-gradient(90deg, var(--primary), var(--primaryDark));
-  border:none;
-  color:#fff;
-}
-.btn.primary:hover{
-  filter: brightness(1.03);
-}
-.btn.ghost{
-  background: transparent;
-}
-
-/* Back link */
-.back{
-  color:var(--text);
-  text-decoration:none;
-  font-weight:900;
-  font-size:16px;
-  padding:8px 10px;
-  border:1px solid rgba(255,255,255,.12);
-  border-radius:12px;
-  background: rgba(10,18,34,.35);
-}
-
-/* Inputs */
-.form{display:flex; flex-direction:column; gap:8px; margin-top:10px}
-
-input,select{
-  width:100%;
-  padding:10px 12px;
-  border-radius:14px;
-  border:1px solid rgba(255,255,255,.14);
-  background: rgba(7,16,42,.55);
-  color:var(--text);
-  outline:none;
-  transition: border-color .12s ease, box-shadow .12s ease;
-}
-select{cursor:pointer}
-input:focus,select:focus{
-  border-color: rgba(254,80,0,.55);
-  box-shadow: 0 0 0 3px rgba(254,80,0,.16);
-}
-
-/* ✅ Checkbox ให้ใหญ่ + สีองค์กร + อ่านง่าย */
-input[type="checkbox"]{
-  width:20px;
-  height:20px;
-  accent-color: var(--primary);
-}
-
-/* ✅ บรรทัด checkbox ให้เป็นระเบียบ (ใช้กับ “เปิดอุปกรณ์นี้ในห้อง”, “Inverter” ฯลฯ) */
-.checkline{
-  display:flex;
-  align-items:center;
-  gap:10px;
-  white-space:nowrap;
-  font-weight:900;
-}
-.checkline span{
-  font-weight:900;
-  color:var(--text);
-}
-.checkline .hint{
-  font-weight:800;
-  color:var(--muted);
-}
-
-/* Flash messages */
-.flashwrap{display:flex; flex-direction:column; gap:8px; margin-bottom:10px}
-.flash{
-  padding:10px 12px;
-  border-radius:14px;
-  border:1px solid rgba(255,255,255,.12);
-  background: rgba(9,16,32,.55);
-}
-.flash.error{
-  border-color: rgba(255,92,122,.40);
-  background: rgba(134,38,51,.22);
-}
-.flash.success{
-  border-color: rgba(47,208,122,.35);
-  background: rgba(18,60,36,.35);
-}
-
-/* Switch */
-.switch{position:relative; display:inline-block; width:48px; height:26px}
-.switch input{opacity:0; width:0; height:0}
-.slider{
-  position:absolute; cursor:pointer; inset:0;
-  background: rgba(99,102,106,.35);
-  transition:.2s;
-  border-radius:999px;
-  border:1px solid rgba(255,255,255,.14);
-}
-.slider:before{
-  position:absolute; content:"";
-  height:20px; width:20px; left:3px; bottom:2px;
-  background:#fff; transition:.2s; border-radius:50%;
-}
-.switch input:checked + .slider{
-  background: linear-gradient(90deg, var(--primary), var(--primaryDark));
-  border:none;
-}
-.switch input:checked + .slider:before{transform: translateX(21px)}
-
-/* Tips list */
-.tips{
-  margin:8px 0 0 18px;
-  color:var(--muted);
-  line-height:1.55;
-}
-.tips li{margin:4px 0}
-
-/* Tables */
-.tablewrap{
-  overflow:auto;
-  border:1px solid rgba(255,255,255,.10);
-  border-radius:16px;
-  background: rgba(9,16,32,.35);
-}
-table{
-  width:100%;
-  border-collapse:collapse;
-  min-width:780px;
-}
-th,td{
-  padding:10px 10px;
-  border-bottom:1px solid rgba(255,255,255,.10);
-  text-align:left;
-}
-th{
-  background: rgba(15,27,48,.92);
-  position:sticky;
-  top:0;
-  font-weight:900;
-  letter-spacing:.2px;
-  border-bottom:1px solid rgba(254,80,0,.35);
-}
-
-/* Progress (if used) */
-.level-progress{margin-top:8px}
-.barwrap{
-  height:10px;
-  background: rgba(6,17,36,.55);
-  border:1px solid rgba(255,255,255,.10);
-  border-radius:999px;
-  overflow:hidden
-}
-.barfill{
-  height:100%;
-  background: linear-gradient(90deg, var(--primary), var(--primaryDark));
-  width:0%;
-}
-
-/* Toast (if used) */
-.toast{
-  padding:10px 12px;
-  border-radius:12px;
-  margin:8px 0;
-  background: rgba(255,255,255,0.06);
-  border:1px solid rgba(255,255,255,0.10);
-}
-.toast.success{border-color:rgba(47,208,122,.45);}
-.toast.error{border-color:rgba(255,92,122,.45);}
-
-/* Small UI polish */
-a.btn, button.btn { user-select:none }
-button.btn{ font-family:var(--font) }
-code, .code{
-  font-family:var(--mono);
-  background: rgba(255,255,255,.06);
-  border:1px solid rgba(255,255,255,.10);
-  padding:2px 6px;
-  border-radius:10px;
-}
-
-/* Make KPI feel "official" */
-.grid3 .mini .big{
-  margin-top:6px;
-}
-.grid3 .mini{
-  border-left:3px solid rgba(254,80,0,.35);
-}
-
-/* Improve readability in result boxes */
-#resultBox, #roomsSummary{
-  line-height:1.55;
-}
-#resultBox .big{
-  font-size:22px;
-}
-
-/* Responsive tweak for smaller phones */
-@media (max-width: 520px){
-  .shell{padding:12px 10px 30px}
-  .btn{padding:10px 12px}
-  .big{font-size:22px}
-}
-
-
