@@ -1,413 +1,229 @@
 /* ============================================================
-   MEA Executive Edition (ENERGY LIFE V3) 
-   - Modified ONLY Colors to MEA Corporate Identity
-   - Kept all original structures and features
+   MEA Modern UI Edition (2026 Refresh)
+   - Concept: Clean, Minimal, Professional
+   - Primary: MEA ORANGE #FE5000
    ============================================================ */
 
-:root{
-  /* Base (เปลี่ยนจากโทนมืดเป็นโทนสว่างสะอาดตา) */
-  --bg1:#FFFFFF;
-  --bg2:#F4F4F4;
+:root {
+  /* เน้นโทนสีขาวและเทา Slate เพื่อให้สีส้มดูพรีเมียม */
+  --bg-app: #f8fafc;
+  --card-bg: #ffffff;
+  --primary: #FE5000;
+  --primary-hover: #E64A00;
+  --primary-light: rgba(254, 80, 0, 0.08);
+  
+  --text-main: #1e293b;     /* Slate 800 */
+  --text-muted: #64748b;    /* Slate 500 */
+  
+  --border: #e2e8f0;
+  --radius-lg: 16px;
+  --radius-md: 12px;
+  
+  /* Shadow แบบทันสมัย (Soft Shadow) */
+  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  --shadow-hover: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
 
-  --card: rgba(255, 255, 255, 0.9);
-  --cardSolid:#FFFFFF;
-  --card2:#F9F9F9;
-
-  --border:#E0E0E0;
-  --border2:#F0F0F0;
-
-  --text:#333333;      /* ตัวอักษรหลักสีเข้ม */
-  --muted:#757575;     /* ตัวอักษรจางสีเทา */
-
-  /* MEA Brand (สีส้ม-เทา-เหลือง ของ กฟน.) */
-  --primary:#FE5000;         /* MEA ORANGE */
-  --primaryDark:#d94300;
-  --secondary:#63666A;       /* MEA DARK GRAY */
-  --light:#BBBCBC;           /* MEA LIGHT GRAY */
-  --yellow:#FFBF3F;          /* MEA YELLOW */
-  --red:#862633;             /* MEA RED */
-
-  /* Status (สีสว่างขึ้นให้อ่านง่ายบนพื้นขาว) */
-  --ok:#28a745;
-  --warn:#FFBF3F;
-  --danger:#dc3545;
-
-  /* Effects (ปรับเงาให้ดูนุ่มนวลแบบ Light Mode) */
-  --shadow: 0 10px 30px rgba(0,0,0,.08);
-  --radius: 18px;
-  --radius2: 14px;
-
-  /* Typography */
-  --font: "Noto Sans Thai", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  --font: "Noto Sans Thai", system-ui, -apple-system, sans-serif;
 }
 
-*{box-sizing:border-box}
-html,body{height:100%}
-
-body.bg{
-  margin:0;
-  font-family:var(--font);
-  color:var(--text);
-  /* ปรับ Gradient ให้ดูสว่างแบบ Professional */
-  background:
-    radial-gradient(1200px 700px at 18% 0%, rgba(254,80,0,.05) 0%, transparent 55%),
-    radial-gradient(900px 650px at 88% 18%, rgba(255,191,63,.05) 0%, transparent 58%),
-    linear-gradient(180deg, var(--bg1), var(--bg2));
-  min-height:100vh;
+body.bg {
+  background-color: var(--bg-app);
+  font-family: var(--font);
+  color: var(--text-main);
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Container */
-.shell{
-  max-width:1160px;
-  margin:0 auto;
-  padding:16px 14px 44px;
+.shell {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 20px;
 }
 
-/* Top bar (ปรับพื้นหลังเป็นสีส้ม MEA ตามรูป) */
-.top{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:12px;
-  padding:12px 20px;
-  border:1px solid rgba(254,80,0,.1);
-  border-radius:var(--radius);
-  background: var(--primary); /* สีส้ม กฟน. */
-  box-shadow:var(--shadow);
-  position:sticky;
-  top:0;
-  z-index:5;
-  backdrop-filter: blur(10px);
-  color: #FFFFFF; /* ตัวอักษรบนแถบส้มเป็นสีขาว */
-}
-
-.top.bar{
-  border-left:4px solid var(--primaryDark);
-}
-
-.top .logo{
-  font-size:30px;
-  filter: brightness(0) invert(1); /* ทำให้โลโก้เป็นสีขาว */
-}
-
-/* Headings */
-.title{
-  font-size:18px;
-  font-weight:800;
-  letter-spacing:.2px;
-  line-height:1.15;
-}
-.subtitle{
-  font-size:12.5px;
-  color: rgba(255,255,255,0.85); /* สีขาวจางๆ บนแถบส้ม */
-  line-height:1.35;
-}
-
-h2{
-  margin:0 0 10px;
-  font-size:18px;
-  font-weight:900;
-  letter-spacing:.2px;
-  padding-left:12px;
-  border-left:4px solid var(--primary);
-  color: var(--primary);
-}
-h3{
-  margin:0 0 8px;
-  font-size:15px;
-  font-weight:900;
-  letter-spacing:.15px;
-}
-
-/* Layout helpers */
-.row{display:flex; align-items:center}
-.row.gap{gap:10px}
-.row.between{justify-content:space-between}
-.row.end{justify-content:flex-end}
-.grow{flex:1}
-.mt{margin-top:14px}
-.mt1{margin-top:10px}
-.mt2{margin-top:12px}
-
-.muted{color:var(--muted)}
-.small{font-size:12px}
-
-/* Main grids */
-.grid2{
-  display:grid;
-  grid-template-columns: 1.35fr .95fr;
-  gap:14px;
-  align-items:start;
-}
-.grid3{
-  display:grid;
-  grid-template-columns: repeat(3, minmax(0,1fr));
-  gap:10px;
-}
-@media (max-width: 980px){
-  .grid2{grid-template-columns:1fr}
-  .top{flex-direction:column; align-items:flex-start}
-}
-
-/* Cards */
-.card{
-  background:var(--cardSolid);
-  border:1px solid var(--border);
-  border-radius:var(--radius);
-  padding:16px 16px;
-  box-shadow:var(--shadow);
-}
-.card2{
-  background:var(--card2);
-  border:1px solid var(--border);
-  border-radius:var(--radius2);
-  padding:14px 14px;
-}
-
-/* Dividers */
-.divider{
-  height:1px;
-  background: linear-gradient(90deg, var(--primary), var(--border));
-  margin:14px 0;
-}
-
-/* Panel */
-.panel{
-  background: #fdfdfd;
-  border:1px dashed var(--primary);
-  border-radius:16px;
-  padding:12px 12px;
-}
-
-/* KPI mini cards (ตัวเลขสีส้มขีดเส้นใต้ตามรูป) */
-.mini{
-  background: #FFFFFF;
-  border:1px solid var(--border);
-  border-radius:16px;
-  position:relative;
-}
-.mini:before{
-  content:"";
-  position:absolute;
-  inset:0;
-  border-radius:16px;
-  pointer-events:none;
-  box-shadow: inset 0 0 0 1px rgba(254,80,0,.05);
-}
-.mini-title{
-  font-weight:800;
-  font-size:12.5px;
-  color:var(--muted);
-  letter-spacing:.2px;
-}
-.mini-text{font-size:12px}
-.big{
-  font-size:24px;
-  font-weight:900;
-  letter-spacing:.3px;
-  line-height:1.05;
-  color: var(--primary); /* ตัวเลขเป็นสีส้ม */
-  text-decoration: underline; /* ขีดเส้นใต้ตามรูป */
-}
-
-/* Badges */
-.badge{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  padding:6px 10px;
-  border-radius:999px;
-  border:1px solid rgba(254,80,0,.2);
-  background: rgba(254,80,0,.08);
-  color: var(--text);
-  font-weight:900;
-  font-size:12px;
-}
-.badge.ok{ border-color:var(--ok); background: rgba(40,167,69,.1); color:var(--ok) }
-.badge.warn{ border-color:var(--warn); background: rgba(255,191,63,.1); color:#856404 }
-.badge.danger{ border-color:var(--danger); background: rgba(220,53,69,.1); color:var(--danger) }
-
-/* Buttons */
-.btn{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  padding:10px 14px;
-  border-radius:999px;
-  border:1px solid var(--border);
-  background: #f8f9fa;
-  color:var(--text);
-  text-decoration:none;
-  cursor:pointer;
-  font-weight:800;
-  gap:8px;
-  transition: all .12s ease;
-}
-.btn:hover{
-  transform: translateY(-1px);
-  border-color: var(--primary);
-  background: #FFFFFF;
-}
-.btn.primary{
-  background: linear-gradient(90deg, var(--primary), var(--primaryDark));
-  border:none;
-  color:#fff;
-}
-.btn.ghost{ background: transparent; }
-
-/* Back link */
-.back{
-  color:var(--text);
-  text-decoration:none;
-  font-weight:900;
-  font-size:16px;
-  padding:8px 10px;
-  border:1px solid var(--border);
-  border-radius:12px;
-  background: #FFFFFF;
-}
-
-/* Inputs */
-.form{display:flex; flex-direction:column; gap:8px; margin-top:10px}
-
-input,select{
-  width:100%;
-  padding:10px 12px;
-  border-radius:14px;
-  border:1px solid var(--border);
-  background: #FFFFFF;
-  color:var(--text);
-  outline:none;
-  transition: all .12s ease;
-}
-input:focus,select:focus{
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(254,80,0,.1);
-}
-
-/* ✅ Checkbox */
-input[type="checkbox"]{
-  width:20px;
-  height:20px;
-  accent-color: var(--primary);
-}
-
-.checkline{
-  display:flex;
-  align-items:center;
-  gap:10px;
-  white-space:nowrap;
-  font-weight:900;
-}
-.checkline span{ font-weight:900; color:var(--text); }
-.checkline .hint{ font-weight:800; color:var(--muted); }
-
-/* Flash messages */
-.flashwrap{display:flex; flex-direction:column; gap:8px; margin-bottom:10px}
-.flash{
-  padding:10px 12px;
-  border-radius:14px;
-  border:1px solid var(--border);
-  background: #fdfdfd;
-}
-.flash.error{ border-color: var(--danger); background: rgba(220,53,69,0.05); color: var(--danger); }
-.flash.success{ border-color: var(--ok); background: rgba(40,167,69,0.05); color: var(--ok); }
-
-/* Switch */
-.switch{position:relative; display:inline-block; width:48px; height:26px}
-.switch input{opacity:0; width:0; height:0}
-.slider{
-  position:absolute; cursor:pointer; inset:0;
-  background: #ccc;
-  transition:.2s;
-  border-radius:999px;
-  border:1px solid var(--border);
-}
-.slider:before{
-  position:absolute; content:"";
-  height:20px; width:20px; left:3px; bottom:2px;
-  background:#fff; transition:.2s; border-radius:50%;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-.switch input:checked + .slider{
+/* --- Top Bar (Modern Pill Design) --- */
+.top {
   background: var(--primary);
-  border:none;
-}
-.switch input:checked + .slider:before{transform: translateX(21px)}
-
-/* Tips list */
-.tips{ margin:8px 0 0 18px; color:var(--muted); line-height:1.55; }
-.tips li{margin:4px 0}
-
-/* Tables (ปรับหัวตารางให้เป็นระเบียบตามรูป) */
-.tablewrap{
-  overflow:auto;
-  border:1px solid var(--border);
-  border-radius:16px;
-  background: #FFFFFF;
-}
-table{
-  width:100%;
-  border-collapse:collapse;
-  min-width:780px;
-}
-th,td{
-  padding:12px 15px;
-  border-bottom:1px solid var(--border2);
-  text-align:left;
-}
-th{
-  background: #f8f9fa;
-  position:sticky;
-  top:0;
-  font-weight:900;
-  color: var(--secondary);
-  border-bottom: 2px solid var(--primary);
+  border-radius: var(--radius-md);
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 10px 15px -3px rgba(254, 80, 0, 0.2);
+  margin-bottom: 24px;
 }
 
-/* Progress */
-.level-progress{margin-top:8px}
-.barwrap{
-  height:10px;
-  background: #EEEEEE;
-  border:1px solid var(--border);
-  border-radius:999px;
-  overflow:hidden
-}
-.barfill{
-  height:100%;
-  background: linear-gradient(90deg, var(--primary), var(--primaryDark));
-  width:0%;
+.top .logo {
+  font-size: 24px;
+  font-weight: 800;
+  color: white;
+  letter-spacing: -0.5px;
 }
 
-/* Toast */
-.toast{
-  padding:10px 12px;
-  border-radius:12px;
-  margin:8px 0;
-  background: #FFFFFF;
-  border:1px solid var(--border);
+/* --- Card Design (Clean & Flat) --- */
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
   box-shadow: var(--shadow);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-/* Small UI polish */
-code, .code{
-  font-family:var(--mono);
-  background: #f0f0f0;
-  border:1px solid var(--border);
-  padding:2px 6px;
-  border-radius:10px;
+.card:hover {
+  box-shadow: var(--shadow-hover);
 }
 
-/* Make KPI feel "official" */
-.grid3 .mini{
-  border-left:3px solid var(--primary);
+h2 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
-/* Responsive tweak */
-@media (max-width: 520px){
-  .shell{padding:12px 10px 30px}
-  .btn{padding:10px 12px}
-  .big{font-size:22px}
+h2::before {
+  content: "";
+  display: inline-block;
+  width: 4px;
+  height: 20px;
+  background: var(--primary);
+  border-radius: 4px;
+}
+
+/* --- Grid & Layout --- */
+.grid2 {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 20px;
+}
+
+/* --- KPI / Mini Cards --- */
+.mini {
+  background: var(--primary-light);
+  border: 1px solid transparent;
+  padding: 16px;
+  border-radius: var(--radius-md);
+  transition: all 0.2s;
+}
+
+.mini:hover {
+  background: white;
+  border-color: var(--primary);
+  transform: translateY(-2px);
+}
+
+.mini-title {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.big {
+  color: var(--primary);
+  font-size: 1.5rem;
+  font-weight: 800;
+  text-decoration: none; /* ลบขีดเส้นใต้เพื่อให้ดูคลีน */
+}
+
+/* --- Form Elements (Inputs & Selects) --- */
+input, select {
+  background: #f1f5f9;
+  border: 2px solid transparent;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  font-family: var(--font);
+  font-size: 0.95rem;
+  transition: all 0.2s;
+}
+
+input:focus, select:focus {
+  background: white;
+  border-color: var(--primary);
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(254, 80, 0, 0.1);
+}
+
+/* --- Modern Buttons --- */
+.btn {
+  padding: 10px 20px;
+  font-weight: 700;
+  border-radius: var(--radius-md);
+  transition: all 0.2s;
+  cursor: pointer;
+  border: 1px solid var(--border);
+}
+
+.btn.primary {
+  background: var(--primary);
+  color: white;
+  border: none;
+  box-shadow: 0 4px 6px rgba(254, 80, 0, 0.2);
+}
+
+.btn.primary:hover {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 12px rgba(254, 80, 0, 0.3);
+}
+
+/* --- Table Styles --- */
+.tablewrap {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th {
+  background: #f8fafc;
+  padding: 16px;
+  text-align: left;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  border-bottom: 2px solid var(--border);
+}
+
+td {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.95rem;
+}
+
+tr:hover td {
+  background: #fdfdfd;
+}
+
+/* --- Toggle Switch Modern --- */
+.slider {
+  background: #cbd5e1;
+}
+
+.switch input:checked + .slider {
+  background: var(--primary);
+}
+
+/* --- Badge Status --- */
+.badge {
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.badge.ok { background: #dcfce7; color: #166534; }
+.badge.danger { background: #fee2e2; color: #991b1b; }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .grid2 { grid-template-columns: 1fr; }
+  .top { flex-direction: column; text-align: center; }
 }
